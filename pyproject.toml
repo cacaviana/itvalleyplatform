@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "itvalleyplatform"
+version = "0.1.0"
+description = "SDK multi-tenant plug-and-play da IT Valley (tenant, permissões, RLS) — uma linha por rota"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "IT Valley School", email = "contato@itvalley.com.br" },
+]
+keywords = ["fastapi", "multi-tenant", "rls", "jwt", "itvalley"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "itvalleysecurity>=0.1.0",
+    "fastapi>=0.111",
+    "python-dotenv>=1.0.1",
+    "click>=8.0.0",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+sql = ["pyodbc>=5.0.0"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "pytest-cov",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+itvalleyplatform = "itvalleyplatform.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/itvalley/itvalleyplatform"
+Repository = "https://github.com/itvalley/itvalleyplatform.git"
+
+[tool.hatch.build.targets.wheel]
+packages = ["itvalleyplatform"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

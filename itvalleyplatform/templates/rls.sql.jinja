@@ -1,0 +1,63 @@
+-- Gerado por: itvalleyplatform generate-rls
+-- Schema: {{ schema }}
+-- Tabelas: {{ tables | join(', ') }}
+-- Data: {{ generated_at }}
+--
+-- ATENÇÃO:
+--   1. Revise antes de rodar em produção.
+--   2. Após o ALTER TABLE, popule tenant_id nos dados existentes
+--      (ex: UPDATE {{ schema }}.<tabela> SET tenant_id = 'it-valley-master' WHERE tenant_id = '').
+--   3. As Security Policies entram em vigor com STATE = ON. A partir desse momento,
+--      qualquer query precisa de SESSION_CONTEXT('tenant_id') setado, exceto master
+--      (SESSION_CONTEXT('is_master') = 1).
+
+-- 1. Schema de segurança (executar 1 vez por banco)
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'rls')
+    EXEC('CREATE SCHEMA rls');
+GO
+
+-- 2. Função de filtro (executar 1 vez por banco; CREATE OR ALTER é idempotente)
+CREATE OR ALTER FUNCTION rls.fn_tenant_filter(@tenant_id NVARCHAR(100))
+RETURNS TABLE
+WITH SCHEMABINDING
+AS
+RETURN SELECT 1 AS result
+WHERE @tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(100))
+   OR CAST(SESSION_CONTEXT(N'is_master') AS BIT) = 1;
+GO
+
+-- 3. Adicionar coluna tenant_id em cada tabela
+{% for table in tables %}
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'{{ schema }}.{{ table }}') AND name = 'tenant_id'
+)
+    ALTER TABLE {{ schema }}.{{ table }} ADD tenant_id NVARCHAR(100) NOT NULL DEFAULT '';
+{% endfor %}
+GO
+
+-- 4. Index em tenant_id (acelera as queries filtradas pela RLS)
+{% for table in tables %}
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_{{ table }}_tenant' AND object_id = OBJECT_ID(N'{{ schema }}.{{ table }}')
+)
+    CREATE INDEX IX_{{ table }}_tenant ON {{ schema }}.{{ table }}(tenant_id);
+{% endfor %}
+GO
+
+-- 5. Security policies (uma por tabela)
+{% for table in tables %}
+IF EXISTS (SELECT 1 FROM sys.security_policies WHERE name = '{{ schema }}_{{ table }}_policy')
+    DROP SECURITY POLICY rls.{{ schema }}_{{ table }}_policy;
+GO
+
+CREATE SECURITY POLICY rls.{{ schema }}_{{ table }}_policy
+ADD FILTER PREDICATE rls.fn_tenant_filter(tenant_id) ON {{ schema }}.{{ table }},
+ADD BLOCK PREDICATE  rls.fn_tenant_filter(tenant_id) ON {{ schema }}.{{ table }} AFTER INSERT,
+ADD BLOCK PREDICATE  rls.fn_tenant_filter(tenant_id) ON {{ schema }}.{{ table }} AFTER UPDATE,
+ADD BLOCK PREDICATE  rls.fn_tenant_filter(tenant_id) ON {{ schema }}.{{ table }} BEFORE UPDATE,
+ADD BLOCK PREDICATE  rls.fn_tenant_filter(tenant_id) ON {{ schema }}.{{ table }} BEFORE DELETE
+WITH (STATE = ON);
+GO
+{% endfor %}
