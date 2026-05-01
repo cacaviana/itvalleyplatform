@@ -1,0 +1,164 @@
+-- =====================================================================
+-- Gerado por: itvalleyplatform init-platform
+-- Banco alvo: dbplatform (servidor: srvmasterclass)
+-- Data: {{ generated_at }}
+--
+-- Este script é IDEMPOTENTE — pode ser executado várias vezes sem erro.
+-- Cria o schema platform.* com as tabelas de IDENTIDADE compartilhadas
+-- por todos os sistemas IT Valley (Genesis, Petra, TaskDemand, etc).
+-- =====================================================================
+
+-- 1. Schema
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'platform')
+    EXEC('CREATE SCHEMA platform');
+GO
+
+-- 2. Tenants (organizações/clientes)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tenants' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.tenants (
+    id          NVARCHAR(50)   NOT NULL,
+    name        NVARCHAR(200)  NOT NULL,
+    slug        NVARCHAR(100)  NOT NULL,
+    plan        NVARCHAR(50)   NOT NULL DEFAULT 'trial',
+    status      NVARCHAR(20)   NOT NULL DEFAULT 'active',
+    is_master   BIT            NOT NULL DEFAULT 0,
+    config      NVARCHAR(MAX)  NULL,
+    deleted_at  DATETIME2      NULL,
+    created_at  DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at  DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_tenants PRIMARY KEY (id),
+    CONSTRAINT UQ_platform_tenants_slug UNIQUE (slug)
+);
+GO
+
+-- 3. Users (globais — 1 user pode estar em vários tenants)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'users' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.users (
+    id            NVARCHAR(50)   NOT NULL,
+    email         NVARCHAR(255)  NOT NULL,
+    name          NVARCHAR(200)  NOT NULL,
+    password_hash NVARCHAR(500)  NOT NULL,
+    is_active     BIT            NOT NULL DEFAULT 1,
+    deleted_at    DATETIME2      NULL,
+    created_at    DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at    DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_users PRIMARY KEY (id),
+    CONSTRAINT UQ_platform_users_email UNIQUE (email)
+);
+GO
+
+-- 4. Tenant ↔ User (N:N) com role
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tenant_users' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.tenant_users (
+    tenant_id   NVARCHAR(50)   NOT NULL,
+    user_id     NVARCHAR(50)   NOT NULL,
+    role        NVARCHAR(50)   NOT NULL DEFAULT 'user',
+    status      NVARCHAR(20)   NOT NULL DEFAULT 'active',
+    created_at  DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_tenant_users PRIMARY KEY (tenant_id, user_id),
+    CONSTRAINT FK_platform_tenant_users_tenant FOREIGN KEY (tenant_id) REFERENCES platform.tenants(id),
+    CONSTRAINT FK_platform_tenant_users_user FOREIGN KEY (user_id) REFERENCES platform.users(id)
+);
+GO
+
+-- 5. Catálogo de produtos
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'products' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.products (
+    id           INT            IDENTITY(1,1) NOT NULL,
+    slug         NVARCHAR(50)   NOT NULL,
+    name         NVARCHAR(200)  NOT NULL,
+    description  NVARCHAR(500)  NULL,
+    is_active    BIT            NOT NULL DEFAULT 1,
+    created_at   DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_products PRIMARY KEY (id),
+    CONSTRAINT UQ_platform_products_slug UNIQUE (slug)
+);
+GO
+
+-- 6. Tenant ↔ Product (N:N) — quais produtos cada tenant assina
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tenant_products' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.tenant_products (
+    tenant_id   NVARCHAR(50)   NOT NULL,
+    product_id  INT            NOT NULL,
+    status      NVARCHAR(20)   NOT NULL DEFAULT 'active',
+    expires_at  DATETIME2      NULL,
+    created_at  DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_tenant_products PRIMARY KEY (tenant_id, product_id),
+    CONSTRAINT FK_platform_tenant_products_tenant FOREIGN KEY (tenant_id) REFERENCES platform.tenants(id),
+    CONSTRAINT FK_platform_tenant_products_product FOREIGN KEY (product_id) REFERENCES platform.products(id)
+);
+GO
+
+-- 7. Catálogo de permissões (por produto)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'permissions' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.permissions (
+    id          INT            IDENTITY(1,1) NOT NULL,
+    product_id  INT            NOT NULL,
+    slug        NVARCHAR(100)  NOT NULL,
+    name        NVARCHAR(200)  NOT NULL,
+    CONSTRAINT PK_platform_permissions PRIMARY KEY (id),
+    CONSTRAINT UQ_platform_permissions_product_slug UNIQUE (product_id, slug),
+    CONSTRAINT FK_platform_permissions_product FOREIGN KEY (product_id) REFERENCES platform.products(id)
+);
+GO
+
+-- 8. Role ↔ Permission (qual role recebe qual permissão dentro de cada produto)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'role_permissions' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.role_permissions (
+    role          NVARCHAR(50)  NOT NULL,
+    product_id    INT           NOT NULL,
+    permission_id INT           NOT NULL,
+    CONSTRAINT PK_platform_role_permissions PRIMARY KEY (role, product_id, permission_id),
+    CONSTRAINT FK_platform_role_permissions_product FOREIGN KEY (product_id) REFERENCES platform.products(id),
+    CONSTRAINT FK_platform_role_permissions_permission FOREIGN KEY (permission_id) REFERENCES platform.permissions(id)
+);
+GO
+
+-- 9. Audit logs (tudo que importa em forma de evento)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'audit_logs' AND schema_id = SCHEMA_ID('platform'))
+CREATE TABLE platform.audit_logs (
+    id           NVARCHAR(50)   NOT NULL,
+    tenant_id    NVARCHAR(50)   NULL,        -- NULL para ações master/globais
+    user_id      NVARCHAR(50)   NULL,
+    action       NVARCHAR(100)  NOT NULL,
+    entity_type  NVARCHAR(100)  NULL,
+    entity_id    NVARCHAR(100)  NULL,
+    payload_json NVARCHAR(MAX)  NULL,
+    created_at   DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_platform_audit_logs PRIMARY KEY (id),
+    CONSTRAINT FK_platform_audit_logs_tenant FOREIGN KEY (tenant_id) REFERENCES platform.tenants(id),
+    CONSTRAINT FK_platform_audit_logs_user   FOREIGN KEY (user_id)   REFERENCES platform.users(id)
+);
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_audit_logs_tenant_created' AND object_id = OBJECT_ID('platform.audit_logs')
+)
+    CREATE INDEX IX_audit_logs_tenant_created ON platform.audit_logs(tenant_id, created_at DESC);
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_audit_logs_user_created' AND object_id = OBJECT_ID('platform.audit_logs')
+)
+    CREATE INDEX IX_audit_logs_user_created ON platform.audit_logs(user_id, created_at DESC);
+GO
+
+-- =====================================================================
+-- SEEDS
+-- =====================================================================
+
+-- Master tenant (IT Valley)
+IF NOT EXISTS (SELECT 1 FROM platform.tenants WHERE id = 'it-valley')
+    INSERT INTO platform.tenants (id, name, slug, plan, status, is_master)
+    VALUES ('it-valley', 'IT Valley (Master)', 'it-valley', 'internal', 'active', 1);
+GO
+
+-- Catálogo de produtos
+{% for product in products %}
+IF NOT EXISTS (SELECT 1 FROM platform.products WHERE slug = '{{ product.slug }}')
+    INSERT INTO platform.products (slug, name, description)
+    VALUES ('{{ product.slug }}', '{{ product.name }}', '{{ product.description }}');
+{% endfor %}
+GO

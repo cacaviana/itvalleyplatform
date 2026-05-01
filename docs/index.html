@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>itvalleyplatform — Arquitetura</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="brand">
+        <div class="brand-logo">IT</div>
+        <div>
+            <div class="brand-name">itvalleyplatform</div>
+            <div class="brand-tag">v0.1.0 · multi-tenant SDK</div>
+        </div>
+    </div>
+    <nav>
+        <a href="#visao">Visão geral</a>
+        <a href="#arquitetura">Arquitetura</a>
+        <a href="#fluxo-auth">Fluxo de auth</a>
+        <a href="#multi-db">Dois bancos</a>
+        <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
+        <a href="#master">Master bypass</a>
+        <a href="#tabelas">Tabelas <code>platform.*</code></a>
+        <a href="#dx">DX do dev</a>
+        <a href="#cli">CLI</a>
+        <a href="#workflow">Workflow recomendado</a>
+        <a href="#faq">FAQ</a>
+    </nav>
+    <div class="sidebar-footer">
+        Documentação interna IT Valley<br>
+        Última geração: <span id="last-update">—</span>
+    </div>
+</aside>
+
+<main>
+
+<section id="visao">
+    <h1>itvalleyplatform</h1>
+    <p class="lead">
+        SDK Python que transforma qualquer FastAPI em sistema multi-tenant
+        adicionando <strong>uma linha por rota</strong>. O dev codifica negócio puro.
+        No final, pluga <code>Depends(require_tenant)</code> e a tenancy começa a valer.
+    </p>
+
+    <div class="cards">
+        <div class="card">
+            <div class="card-icon">🔌</div>
+            <h3>Plug &amp; Play</h3>
+            <p>Sem decorator próprio, sem middleware Starlette. Só <code>Depends</code> do FastAPI.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon">🛡️</div>
+            <h3>Segurança no SDK</h3>
+            <p>JWT, permissão e RLS vivem dentro do pacote. Camada API fica limpa.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon">🌐</div>
+            <h3>Master IT Valley</h3>
+            <p>Claim <code>is_master</code> bypassa RLS — suporte enxerga todos os tenants.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon">📄</div>
+            <h3>RLS no banco</h3>
+            <p>Filtro por <code>tenant_id</code> aplicado pelo Azure SQL, não pelo código.</p>
+        </div>
+    </div>
+</section>
+
+<section id="arquitetura">
+    <h2>Arquitetura macro</h2>
+    <p>
+        Os 11 sistemas IT Valley plugam o mesmo SDK. Cada sistema tem seu banco de domínio
+        (Genesis usa <code>dblumina</code>, TaskDemand usa <code>dbmasterclasse</code>...).
+        Todos compartilham um banco de identidade único: <code>dbplatform</code>.
+    </p>
+    <div class="mermaid">
+flowchart LR
+    subgraph Clientes
+        U[User Browser/App]
+    end
+    subgraph Sistemas
+        G[Genesis API<br/>FastAPI]
+        P[Petra API<br/>FastAPI]
+        T[TaskDemand API<br/>FastAPI]
+        E[... outros 8]
+    end
+    subgraph SDK
+        SDK["itvalleyplatform<br/>(pip install)"]
+    end
+    subgraph Azure_SQL["Azure SQL — srvmasterclass"]
+        DBP[("dbplatform<br/>schema: platform.*<br/>tenants, users,<br/>products, perms")]
+        DBL[("dblumina<br/>genesis.* + dbo.*<br/>(domínio CRM/Genesis)")]
+        DBM[("dbmasterclasse<br/>tkse.*<br/>(domínio TaskDemand)")]
+    end
+
+    U -->|JWT| G
+    U -->|JWT| P
+    U -->|JWT| T
+
+    G -.usa.-> SDK
+    P -.usa.-> SDK
+    T -.usa.-> SDK
+    E -.usa.-> SDK
+
+    G -->|RLS via SESSION_CONTEXT| DBL
+    P -->|RLS via SESSION_CONTEXT| DBL
+    T -->|RLS via SESSION_CONTEXT| DBM
+
+    SDK -.só no login.-> DBP
+    </div>
+</section>
+
+<section id="fluxo-auth">
+    <h2>Fluxo de autenticação</h2>
+    <p>
+        Em cada request, o middleware do SDK lê o JWT, monta o <code>TenantContext</code>
+        em memória e seta o <code>SESSION_CONTEXT</code> no banco do app pra RLS aplicar.
+        <strong>Nenhuma query no banco platform durante a request.</strong>
+    </p>
+    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant API as Sistema (Genesis/Petra)
+    participant SDK as itvalleyplatform
+    participant SEC as itvalleysecurity
+    participant DB as Banco do app (dblumina)
+
+    U->>API: GET /api/leads + Bearer JWT
+    API->>SDK: Depends(require_tenant)
+    SDK->>SEC: verify_access(token)
+    SEC-->>SDK: claims (sub, tenant_id, products, permissions, is_master)
+    SDK->>SDK: monta TenantContext em memória
+    SDK->>DB: EXEC sp_set_session_context @tenant_id, @is_master
+    SDK-->>API: TenantContext
+    API->>DB: SELECT * FROM genesis.leads
+    Note over DB: RLS filtra por SESSION_CONTEXT('tenant_id')
+    DB-->>API: só os leads do tenant
+    API-->>U: 200 OK + dados isolados
+    </div>
+</section>
+
+<section id="multi-db">
+    <h2>Dois bancos, duas connection strings</h2>
+    <p>Cada sistema vai ter <strong>2 entradas no <code>.env</code></strong>:</p>
+    <table>
+        <thead>
+            <tr><th>Env var</th><th>Aponta pra</th><th>Quando é usada</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>APP_SQL_CONNECTION</code></td>
+                <td>Banco do sistema (<code>dblumina</code>, <code>dbmasterclasse</code>...)</td>
+                <td><strong>Toda request</strong> — middleware seta SESSION_CONTEXT pra RLS</td>
+            </tr>
+            <tr>
+                <td><code>PLATFORM_SQL_CONNECTION</code></td>
+                <td><code>dbplatform</code> (schema platform.*)</td>
+                <td>Só no <strong>login</strong> e em endpoints de admin (CRUD de tenants/users/products)</td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="callout">
+        <strong>Cross-DB JOIN não é necessário.</strong> O JWT carrega tudo
+        que a request precisa saber. O <code>dbplatform</code> só é tocado por quem
+        emite o token (login) ou por quem administra a plataforma.
+    </div>
+</section>
+
+<section id="rls">
+    <h2>RLS — Row-Level Security</h2>
+    <p>
+        Toda tabela de domínio (em <code>genesis.*</code>, <code>dbo.*</code>, <code>tkse.*</code>)
+        ganha uma coluna <code>tenant_id</code> e uma <em>Security Policy</em>. O Azure SQL
+        filtra automaticamente — o dev não escreve <code>WHERE tenant_id = X</code>.
+    </p>
+    <pre><code class="sql">-- Função aplicada pela Security Policy em toda query
+CREATE OR ALTER FUNCTION rls.fn_tenant_filter(@tenant_id NVARCHAR(100))
+RETURNS TABLE WITH SCHEMABINDING AS
+RETURN SELECT 1 AS result
+WHERE @tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(100))
+   OR CAST(SESSION_CONTEXT(N'is_master') AS BIT) = 1;</code></pre>
+
+    <div class="mermaid">
+flowchart TD
+    Q["SELECT * FROM genesis.leads"]
+    POL{Security Policy<br/>fn_tenant_filter}
+    SC["SESSION_CONTEXT<br/>tenant_id = clinica-abc<br/>is_master = 0"]
+    R[Resultado: só linhas<br/>com tenant_id = clinica-abc]
+    Q --> POL
+    SC --> POL
+    POL --> R
+    </div>
+</section>
+
+<section id="master">
+    <h2>Master bypass</h2>
+    <p>
+        Usuários internos da IT Valley (suporte, admin) recebem JWT com
+        <code>is_master: true</code>. A função RLS tem um OR explícito que libera tudo
+        quando essa claim aparece.
+    </p>
+    <table>
+        <thead>
+            <tr><th>JWT</th><th>Header <code>X-Tenant-Id</code></th><th>O que enxerga</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>User comum, tenant=<code>clinica-abc</code></td>
+                <td>(qualquer coisa — ignorado)</td>
+                <td>Só dados de <code>clinica-abc</code></td>
+            </tr>
+            <tr>
+                <td>Master</td>
+                <td>(ausente)</td>
+                <td>Todos os tenants — visão global</td>
+            </tr>
+            <tr>
+                <td>Master</td>
+                <td><code>clinica-abc</code></td>
+                <td>Só dados de <code>clinica-abc</code> (modo "ver como cliente")</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="tabelas">
+    <h2>Schema <code>platform.*</code></h2>
+    <p>
+        Identidade compartilhada. Vive no banco <code>dbplatform</code>. Todos os 11 sistemas
+        IT Valley se referenciam aqui.
+    </p>
+    <div class="mermaid">
+erDiagram
+    TENANTS ||--o{ TENANT_USERS : has
+    USERS ||--o{ TENANT_USERS : assigned
+    TENANTS ||--o{ TENANT_PRODUCTS : subscribes
+    PRODUCTS ||--o{ TENANT_PRODUCTS : "in"
+    PRODUCTS ||--o{ PERMISSIONS : defines
+    PRODUCTS ||--o{ ROLE_PERMISSIONS : "in"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : grants
+    TENANTS ||--o{ AUDIT_LOGS : tracked
+    USERS ||--o{ AUDIT_LOGS : did
+
+    TENANTS {
+        nvarchar id PK
+        nvarchar slug UK
+        nvarchar name
+        nvarchar plan
+        nvarchar status
+        bit is_master
+    }
+    USERS {
+        nvarchar id PK
+        nvarchar email UK
+        nvarchar name
+        nvarchar password_hash
+        bit is_active
+    }
+    TENANT_USERS {
+        nvarchar tenant_id FK
+        nvarchar user_id FK
+        nvarchar role
+        nvarchar status
+    }
+    PRODUCTS {
+        int id PK
+        nvarchar slug UK
+        nvarchar name
+        bit is_active
+    }
+    TENANT_PRODUCTS {
+        nvarchar tenant_id FK
+        int product_id FK
+        nvarchar status
+        datetime expires_at
+    }
+    PERMISSIONS {
+        int id PK
+        int product_id FK
+        nvarchar slug
+    }
+    ROLE_PERMISSIONS {
+        nvarchar role
+        int product_id FK
+        int permission_id FK
+    }
+    AUDIT_LOGS {
+        nvarchar id PK
+        nvarchar tenant_id FK
+        nvarchar user_id FK
+        nvarchar action
+    }
+    </div>
+</section>
+
+<section id="dx">
+    <h2>Como o dev vai usar</h2>
+
+    <h3>Antes (sistema sem tenant — fase de desenvolvimento)</h3>
+    <pre><code class="python">from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/api/leads")
+async def list_leads():
+    return await db.query("SELECT * FROM genesis.leads")</code></pre>
+
+    <h3>Depois (pré-staging — pluga o SDK)</h3>
+    <pre><code class="python">from fastapi import Depends, FastAPI
+from itvalleyplatform import TenantContext, require_permission, require_tenant
+
+app = FastAPI()
+
+@app.get("/api/leads")
+async def list_leads(
+    tenant: TenantContext = Depends(require_tenant),
+    _ = Depends(require_permission("leads")),
+):
+    return await db.query("SELECT * FROM genesis.leads")
+    # ↑ query INTACTA. RLS filtra automaticamente.</code></pre>
+
+    <div class="callout">
+        <strong>O dev nunca escreve</strong>: <code>load_dotenv()</code>,
+        <code>WHERE tenant_id = X</code>, <code>if not user.has_permission</code>,
+        decode de JWT, hash de senha (v0.1).
+    </div>
+</section>
+
+<section id="cli">
+    <h2>CLI <code>itvalleyplatform</code></h2>
+
+    <h3>1. Inicializar o banco platform (1 vez por ambiente)</h3>
+    <pre><code class="bash"># gera o DDL completo + seeds (8 produtos + tenant master)
+itvalleyplatform init-platform -o platform_init.sql
+
+# roda no Azure SQL
+sqlcmd -S srvmasterclass.database.windows.net -d dbplatform \
+       -U adminitvalley -P $SQL_PWD -i platform_init.sql</code></pre>
+
+    <h3>2. Aplicar RLS num sistema (1 vez por sistema)</h3>
+    <pre><code class="bash">itvalleyplatform generate-rls \
+    --schema genesis \
+    --tables leads,deals,campaigns,contacts \
+    -o rls_genesis.sql
+
+sqlcmd -S srvmasterclass.database.windows.net -d dblumina \
+       -U adminitvalley -P $SQL_PWD -i rls_genesis.sql</code></pre>
+</section>
+
+<section id="workflow">
+    <h2>Workflow recomendado</h2>
+    <div class="mermaid">
+flowchart LR
+    A[1. Dev codifica<br/>negócio puro<br/>SEM Depends] --> B[2. Sistema<br/>estável em dev]
+    B --> C[3. Pluga<br/>Depends require_tenant<br/>nas rotas]
+    C --> D[4. DBA roda<br/>generate-rls<br/>+ aplica SQL]
+    D --> E[5. Sistema<br/>multi-tenant<br/>em staging]
+    E --> F[6. Deploy prod<br/>via GitHub Actions]
+    </div>
+</section>
+
+<section id="faq">
+    <h2>FAQ</h2>
+
+    <details>
+        <summary>O sistema novo PRECISA conectar no <code>dbplatform</code> pra rodar?</summary>
+        <p><strong>Não.</strong> Em request path normal o middleware lê só o JWT. O
+            <code>dbplatform</code> só é necessário para <em>emitir</em> o JWT (endpoint de login)
+            e para CRUD admin de tenants/users/products. Sistema 100% offline do banco platform
+            funciona perfeitamente em runtime.</p>
+    </details>
+
+    <details>
+        <summary>Posso começar uni-tenant e migrar pra multi depois?</summary>
+        <p>Sim — é o workflow recomendado. Durante o dev, rotas cruas. No final,
+            adiciona <code>Depends(require_tenant)</code>, roda <code>generate-rls</code>,
+            e o sistema vira multi-tenant sem mudar query nenhuma.</p>
+    </details>
+
+    <details>
+        <summary>Por que banco separado pro <code>platform</code> e não schema dentro do <code>dblumina</code>?</summary>
+        <p>Backup independente, blast radius reduzido, login SQL dedicado, e zero
+            dependência circular com sistemas legados (CRM-001 já tem <code>dbo.tenants</code>
+            misturado com 25 tabelas de domínio — não dá pra "promover" sem dor).</p>
+    </details>
+
+    <details>
+        <summary>O master pode ver dados de qualquer tenant <em>sempre</em>?</summary>
+        <p>Sim. Master é IT Valley interno (suporte, debug, ops). Sem header
+            <code>X-Tenant-Id</code> ele vê tudo. Com o header, foca em um tenant específico.
+            Não-master ignora o header sempre.</p>
+    </details>
+
+    <details>
+        <summary>Bug do <code>itvalleysecurity</code> que retorna 500?</summary>
+        <p>Token inválido na versão 0.1.0 do <code>itvalleysecurity</code> vaza como 500
+            em vez de 401. O <code>itvalleyplatform</code> embrulha a exception e devolve 401
+            corretamente. Testes garantem o comportamento (<code>test_auth_wrapper.py</code>).</p>
+    </details>
+
+    <details>
+        <summary>O que vem em v0.2?</summary>
+        <ul>
+            <li>Lookup de tenant em DB com cache Redis</li>
+            <li><code>tenant.get_resource()</code> — Claude/OpenAI keys por tenant</li>
+            <li><code>tenant.upload()</code> — Azure Blob com path resolução</li>
+            <li><code>tenant.track_usage()</code> — quotas por recurso</li>
+        </ul>
+    </details>
+</section>
+
+<footer>
+    <p>itvalleyplatform v0.1.0 · IT Valley · Documentação gerada estaticamente</p>
+</footer>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'base',
+        themeVariables: {
+            primaryColor: '#1e293b',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#475569',
+            lineColor: '#64748b',
+            background: '#0f172a',
+            mainBkg: '#1e293b',
+            secondBkg: '#334155',
+            tertiaryColor: '#475569',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+        },
+    });
+    document.getElementById('last-update').textContent =
+        new Date().toLocaleDateString('pt-BR');
+</script>
+
+</body>
+</html>

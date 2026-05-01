@@ -1,6 +1,7 @@
 import click
 
 from .generate_rls import generate_rls
+from .init_platform import init_platform
 
 
 @click.group()
@@ -9,6 +10,7 @@ def cli() -> None:
     """itvalleyplatform — utilitários de setup multi-tenant."""
 
 
+cli.add_command(init_platform, name="init-platform")
 cli.add_command(generate_rls, name="generate-rls")
 
 
