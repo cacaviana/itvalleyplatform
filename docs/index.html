@@ -24,6 +24,7 @@
         <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
         <a href="#master">Master bypass</a>
         <a href="#tabelas">Tabelas <code>platform.*</code></a>
+        <a href="#arquitetura-camadas">Router / Service / Repo</a>
         <a href="#dx">DX do dev</a>
         <a href="#cli">CLI</a>
         <a href="#workflow">Workflow recomendado</a>
@@ -72,9 +73,9 @@
 <section id="arquitetura">
     <h2>Arquitetura macro</h2>
     <p>
-        Os 11 sistemas IT Valley plugam o mesmo SDK. Cada sistema tem seu banco de domínio
-        (Genesis usa <code>dblumina</code>, TaskDemand usa <code>dbmasterclasse</code>...).
-        Todos compartilham um banco de identidade único: <code>dbplatform</code>.
+        Cada sistema pluga o mesmo SDK e fala com seu próprio banco de domínio.
+        Todos compartilham um banco de identidade único: <code>dbplatform</code>
+        (schema <code>platform.*</code>).
     </p>
     <div class="mermaid">
 flowchart LR
@@ -82,32 +83,32 @@ flowchart LR
         U[User Browser/App]
     end
     subgraph Sistemas
-        G[Genesis API<br/>FastAPI]
-        P[Petra API<br/>FastAPI]
-        T[TaskDemand API<br/>FastAPI]
-        E[... outros 8]
+        SA[Sistema A API<br/>FastAPI]
+        SB[Sistema B API<br/>FastAPI]
+        SC[Sistema C API<br/>FastAPI]
+        SE[... outros]
     end
     subgraph SDK
         SDK["itvalleyplatform<br/>(pip install)"]
     end
-    subgraph Azure_SQL["Azure SQL — srvmasterclass"]
+    subgraph Azure_SQL[Azure SQL]
         DBP[("dbplatform<br/>schema: platform.*<br/>tenants, users,<br/>products, perms")]
-        DBL[("dblumina<br/>genesis.* + dbo.*<br/>(domínio CRM/Genesis)")]
-        DBM[("dbmasterclasse<br/>tkse.*<br/>(domínio TaskDemand)")]
+        DBA[("db_app_a<br/>schema do Sistema A")]
+        DBB[("db_app_b<br/>schema do Sistema B")]
     end
 
-    U -->|JWT| G
-    U -->|JWT| P
-    U -->|JWT| T
+    U -->|JWT| SA
+    U -->|JWT| SB
+    U -->|JWT| SC
 
-    G -.usa.-> SDK
-    P -.usa.-> SDK
-    T -.usa.-> SDK
-    E -.usa.-> SDK
+    SA -.usa.-> SDK
+    SB -.usa.-> SDK
+    SC -.usa.-> SDK
+    SE -.usa.-> SDK
 
-    G -->|RLS via SESSION_CONTEXT| DBL
-    P -->|RLS via SESSION_CONTEXT| DBL
-    T -->|RLS via SESSION_CONTEXT| DBM
+    SA -->|RLS via SESSION_CONTEXT| DBA
+    SB -->|RLS via SESSION_CONTEXT| DBB
+    SC -->|RLS via SESSION_CONTEXT| DBA
 
     SDK -.só no login.-> DBP
     </div>
@@ -127,7 +128,7 @@ sequenceDiagram
     participant API as Sistema (Genesis/Petra)
     participant SDK as itvalleyplatform
     participant SEC as itvalleysecurity
-    participant DB as Banco do app (dblumina)
+    participant DB as Banco do app
 
     U->>API: GET /api/leads + Bearer JWT
     API->>SDK: Depends(require_tenant)
@@ -136,9 +137,10 @@ sequenceDiagram
     SDK->>SDK: monta TenantContext em memória
     SDK->>DB: EXEC sp_set_session_context @tenant_id, @is_master
     SDK-->>API: TenantContext
-    API->>DB: SELECT * FROM genesis.leads
+    API->>API: Service → Repository
+    API->>DB: SELECT * FROM <app_schema>.<tabela>
     Note over DB: RLS filtra por SESSION_CONTEXT('tenant_id')
-    DB-->>API: só os leads do tenant
+    DB-->>API: só linhas do tenant
     API-->>U: 200 OK + dados isolados
     </div>
 </section>
@@ -153,7 +155,7 @@ sequenceDiagram
         <tbody>
             <tr>
                 <td><code>APP_SQL_CONNECTION</code></td>
-                <td>Banco do sistema (<code>dblumina</code>, <code>dbmasterclasse</code>...)</td>
+                <td>Banco do sistema (cada app define o seu)</td>
                 <td><strong>Toda request</strong> — middleware seta SESSION_CONTEXT pra RLS</td>
             </tr>
             <tr>
@@ -173,7 +175,7 @@ sequenceDiagram
 <section id="rls">
     <h2>RLS — Row-Level Security</h2>
     <p>
-        Toda tabela de domínio (em <code>genesis.*</code>, <code>dbo.*</code>, <code>tkse.*</code>)
+        Toda tabela de domínio do sistema (no schema próprio dele)
         ganha uma coluna <code>tenant_id</code> e uma <em>Security Policy</em>. O Azure SQL
         filtra automaticamente — o dev não escreve <code>WHERE tenant_id = X</code>.
     </p>
@@ -186,7 +188,7 @@ WHERE @tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(100))
 
     <div class="mermaid">
 flowchart TD
-    Q["SELECT * FROM genesis.leads"]
+    Q["SELECT * FROM &lt;schema&gt;.&lt;tabela&gt;"]
     POL{Security Policy<br/>fn_tenant_filter}
     SC["SESSION_CONTEXT<br/>tenant_id = clinica-abc<br/>is_master = 0"]
     R[Resultado: só linhas<br/>com tenant_id = clinica-abc]
@@ -297,36 +299,94 @@ erDiagram
     </div>
 </section>
 
+<section id="arquitetura-camadas">
+    <h2>Arquitetura em camadas — regra IT Valley</h2>
+    <p>
+        Toda API IT Valley segue 3 camadas. <strong>Router → Service → Repository.</strong>
+        Não é estilo, é regra de arquitetura. SQL <em>nunca</em> aparece em rota.
+    </p>
+    <div class="mermaid">
+flowchart TD
+    R["Router<br/>(@app.get / @app.post)<br/>fino, só Depends"]
+    S["Service<br/>(orquestra negócio)<br/>opaca, sem SQL"]
+    D["Repository / Data<br/>(único lugar com SQL)<br/>SQLAlchemy / queries"]
+    DB[("Banco do app")]
+    R -->|chama via Depends| S
+    S -->|chama| D
+    D -->|SQL| DB
+    </div>
+    <table>
+        <thead>
+            <tr><th>Camada</th><th>Pode</th><th>NUNCA pode</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Router</strong></td>
+                <td>Receber request, chamar Service via <code>Depends</code>, retornar JSON</td>
+                <td>SQL, query, conhecer DTO de banco, sessão SQLAlchemy, regra de negócio</td>
+            </tr>
+            <tr>
+                <td><strong>Service</strong></td>
+                <td>Orquestrar repositories, aplicar regras de negócio, transformar dados</td>
+                <td>SQL inline, conhecer detalhes do FastAPI (request/response)</td>
+            </tr>
+            <tr>
+                <td><strong>Repository</strong></td>
+                <td>SQL, queries, ORM, stored procedures, mapeamento de tabela</td>
+                <td>Lógica de negócio, validação de domínio, conhecer HTTP</td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="callout">
+        <strong>Se aparecer SQL dentro de uma função decorada com <code>@app.&lt;verb&gt;</code>,
+        está errado.</strong> Não importa quão simples seja o exemplo. O dev novo copia o que vê.
+    </div>
+</section>
+
 <section id="dx">
     <h2>Como o dev vai usar</h2>
 
-    <h3>Antes (sistema sem tenant — fase de desenvolvimento)</h3>
-    <pre><code class="python">from fastapi import FastAPI
+    <p>
+        Padrão IT Valley de 3 camadas — Router fino, Service orquestra, Repository é o
+        <strong>único</strong> lugar com SQL. <strong>Nunca</strong> SQL dentro de uma função
+        <code>@app.&lt;verb&gt;</code>.
+    </p>
 
-app = FastAPI()
-
+    <h3>Antes (fase de dev — zero auth, zero tenancy)</h3>
+    <pre><code class="python"># routers/leads.py
 @app.get("/api/leads")
-async def list_leads():
-    return await db.query("SELECT * FROM genesis.leads")</code></pre>
+async def list_leads(service: LeadsService = Depends(get_leads_service)):
+    return await service.list_all()
+
+# services/leads_service.py
+class LeadsService:
+    async def list_all(self):
+        return await self._repo.find_all()
+
+# data/leads_repository.py
+class LeadsRepository:
+    async def find_all(self):
+        return await self._db.fetch_all("SELECT * FROM &lt;schema&gt;.&lt;tabela&gt;")</code></pre>
 
     <h3>Depois (pré-staging — pluga o SDK)</h3>
-    <pre><code class="python">from fastapi import Depends, FastAPI
+    <pre><code class="python"># routers/leads.py — única mudança: dois Depends a mais
 from itvalleyplatform import TenantContext, require_permission, require_tenant
-
-app = FastAPI()
 
 @app.get("/api/leads")
 async def list_leads(
     tenant: TenantContext = Depends(require_tenant),
     _ = Depends(require_permission("leads")),
+    service: LeadsService = Depends(get_leads_service),
 ):
-    return await db.query("SELECT * FROM genesis.leads")
-    # ↑ query INTACTA. RLS filtra automaticamente.</code></pre>
+    return await service.list_all()
+# ↑ Service e Repository INTACTOS. Query SQL não muda. RLS filtra no banco.</code></pre>
 
     <div class="callout">
-        <strong>O dev nunca escreve</strong>: <code>load_dotenv()</code>,
+        <strong>O router</strong> não conhece SQL, não conhece DTO de banco, não conhece
+        sessão SQLAlchemy. Só recebe <code>Depends</code> e devolve o que o Service entrega.
+        O <strong>dev nunca escreve</strong>: <code>load_dotenv()</code>,
         <code>WHERE tenant_id = X</code>, <code>if not user.has_permission</code>,
-        decode de JWT, hash de senha (v0.1).
+        decode de JWT, hash de senha.
     </div>
 </section>
 
@@ -338,17 +398,17 @@ async def list_leads(
 itvalleyplatform init-platform -o platform_init.sql
 
 # roda no Azure SQL
-sqlcmd -S srvmasterclass.database.windows.net -d dbplatform \
-       -U adminitvalley -P $SQL_PWD -i platform_init.sql</code></pre>
+sqlcmd -S &lt;seu-servidor&gt;.database.windows.net -d dbplatform \
+       -U &lt;user&gt; -P $SQL_PWD -i platform_init.sql</code></pre>
 
     <h3>2. Aplicar RLS num sistema (1 vez por sistema)</h3>
     <pre><code class="bash">itvalleyplatform generate-rls \
-    --schema genesis \
-    --tables leads,deals,campaigns,contacts \
-    -o rls_genesis.sql
+    --schema &lt;seu_schema&gt; \
+    --tables &lt;tabela_a&gt;,&lt;tabela_b&gt;,&lt;tabela_c&gt; \
+    -o rls_&lt;seu_sistema&gt;.sql
 
-sqlcmd -S srvmasterclass.database.windows.net -d dblumina \
-       -U adminitvalley -P $SQL_PWD -i rls_genesis.sql</code></pre>
+sqlcmd -S &lt;seu-servidor&gt;.database.windows.net -d &lt;seu_db&gt; \
+       -U &lt;user&gt; -P $SQL_PWD -i rls_&lt;seu_sistema&gt;.sql</code></pre>
 </section>
 
 <section id="workflow">
@@ -382,10 +442,10 @@ flowchart LR
     </details>
 
     <details>
-        <summary>Por que banco separado pro <code>platform</code> e não schema dentro do <code>dblumina</code>?</summary>
-        <p>Backup independente, blast radius reduzido, login SQL dedicado, e zero
-            dependência circular com sistemas legados (CRM-001 já tem <code>dbo.tenants</code>
-            misturado com 25 tabelas de domínio — não dá pra "promover" sem dor).</p>
+        <summary>Por que banco separado pro <code>platform</code> e não schema dentro de um banco existente?</summary>
+        <p>Backup independente, blast radius reduzido, login SQL dedicado para a plataforma, e
+            zero dependência circular com sistemas legados que já têm tabelas de identidade
+            misturadas com tabelas de domínio.</p>
     </details>
 
     <details>
@@ -393,6 +453,15 @@ flowchart LR
         <p>Sim. Master é IT Valley interno (suporte, debug, ops). Sem header
             <code>X-Tenant-Id</code> ele vê tudo. Com o header, foca em um tenant específico.
             Não-master ignora o header sempre.</p>
+    </details>
+
+    <details>
+        <summary>Por que SQL não pode estar no router?</summary>
+        <p>Regra de arquitetura IT Valley: Router → Service → Repository. O Router só recebe
+            <code>Depends</code> e devolve o que o Service entrega. Service orquestra negócio.
+            Repository é o <strong>único</strong> lugar com SQL/ORM. Se um exemplo, snippet
+            ou doc mostrar <code>db.query(...)</code> dentro de <code>@app.&lt;verb&gt;</code>,
+            é erro de arquitetura — devs novos copiam o que veem.</p>
     </details>
 
     <details>
