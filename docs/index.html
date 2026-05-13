@@ -8,7 +8,10 @@
 </head>
 <body>
 
-<aside class="sidebar">
+<button id="sidebar-toggle" class="sidebar-toggle" aria-expanded="false" aria-controls="sidebar-nav" aria-label="Abrir menu">☰</button>
+<div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+<aside class="sidebar" id="sidebar">
     <div class="brand">
         <div class="brand-logo">P</div>
         <div>
@@ -16,9 +19,10 @@
             <div class="brand-tag">v0.1.0 · multi-tenant SDK</div>
         </div>
     </div>
-    <nav>
+    <nav id="sidebar-nav" aria-label="Documentação">
+        <h3 class="nav-group-header">📦 SDK petraplatform</h3>
         <a href="#visao">Visão geral</a>
-        <a href="#arquitetura">Arquitetura</a>
+        <a href="#arquitetura">Arquitetura macro</a>
         <a href="#fluxo-auth">Fluxo de auth</a>
         <a href="#multi-db">Dois bancos</a>
         <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
@@ -33,6 +37,38 @@
         <a href="#cli">CLI</a>
         <a href="#workflow">Workflow recomendado</a>
         <a href="#faq">FAQ</a>
+
+        <h3 class="nav-group-header">🏢 Petra Sistemas</h3>
+        <a href="#azure-visao">Visão da arquitetura Azure</a>
+        <a href="#azure-ambientes">Ambientes (NONPROD / PROD)</a>
+        <a href="#azure-componentes">Frontend / Backend / Worker</a>
+        <a href="#azure-eventbus">Service Bus e eventos</a>
+        <a href="#azure-storage">Storage e Datalake</a>
+        <a href="#azure-naming">Naming convention</a>
+        <a href="#azure-custo">Custo estimado</a>
+
+        <h3 class="nav-group-header">🔀 GitHub &amp; Branches</h3>
+        <a href="#git-repos">Estrutura de repos</a>
+        <a href="#git-branches">Branches longas (main / accp / prod)</a>
+        <a href="#git-fluxo">Fluxo feature → main → accp → prod</a>
+        <a href="#git-workflows">Workflows GitHub Actions</a>
+        <a href="#git-procedimentos">Procedimentos (PR, review, hotfix)</a>
+
+        <h3 class="nav-group-header">⚙️ Services do Cliente (MongoDB)</h3>
+        <a href="#mongo-porque">Por que MongoDB Atlas</a>
+        <a href="#mongo-modelagem">Modelagem do documento por tenant</a>
+        <a href="#mongo-catalogo">Catálogo de Azure services</a>
+        <a href="#mongo-descoberta">Como o sistema descobre o que o cliente tem</a>
+        <a href="#mongo-provisionamento">Provisionamento (admin liga/desliga)</a>
+
+        <h3 class="nav-group-header">📋 Gestão no ClickUp</h3>
+        <a href="#clickup-estrutura">Estrutura ClickUp da Petra</a>
+        <a href="#clickup-statuses">Statuses padronizados</a>
+        <a href="#clickup-branches">Convenção de branches</a>
+        <a href="#clickup-integracao">Integração nativa GitHub ↔ ClickUp</a>
+        <a href="#clickup-workflow">Auto-update Git → ClickUp por ambiente</a>
+        <a href="#clickup-agente-laura">Agente IA da Laura</a>
+        <a href="#clickup-procedimentos">Procedimentos da Laura</a>
     </nav>
     <div class="sidebar-footer">
         Documentação interna Petra<br>
@@ -858,8 +894,437 @@ flowchart LR
     </details>
 </section>
 
+<!-- ===================================================================== -->
+<!-- ===== CATEGORIA 2: PETRA SISTEMAS (Arquitetura Azure)            ===== -->
+<!-- ===================================================================== -->
+
+<section id="azure-visao">
+    <h2>Arquitetura Azure da Petra — visão</h2>
+    <p>
+        O ecossistema Petra (5 produtos: Genesis, Quanto, Vitrine, Polaris, Calenda)
+        roda inteiro no Azure. Esta seção documenta o <strong>desenho-alvo</strong> —
+        nem todos os recursos existem hoje; é o que vai sendo provisionado conforme cada
+        produto vai pra produção.
+    </p>
+    <div class="callout">
+        <strong>Princípio:</strong> 2 ilhas físicas (NONPROD e PROD) com 3 ambientes
+        lógicos (DEV, ACCP, PROD). Cada ambiente tem isolamento por banco, prefixo de
+        storage e fila — mas DEV+ACCP compartilham plan e Service Bus pra economizar.
+    </div>
+</section>
+
+<section id="azure-ambientes">
+    <h2>Ambientes — NONPROD vs PROD</h2>
+    <table>
+        <thead>
+            <tr><th>Recurso</th><th>NONPROD (DEV + ACCP)</th><th>PROD</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Plan</td><td><code>plan-petra-nonprod</code> (B2/B3, compartilhado)</td><td><code>plan-petra-prod</code> (P0v3)</td></tr>
+            <tr><td>SQL Server</td><td><code>srv-petra-nonprod</code> — bancos por ambiente (<code>dbgenesis-dev</code>, <code>dbgenesis-accp</code>)</td><td><code>srv-petra-prod</code></td></tr>
+            <tr><td>Service Bus</td><td><code>sb-petra-nonprod</code> Standard — queues sufixadas <code>.dev</code> / <code>.accp</code></td><td><code>sb-petra-prod</code> — queues <code>.prod</code></td></tr>
+            <tr><td>Redis</td><td>Sem Redis em NONPROD (cache em memória)</td><td><code>redis-petra-prod</code> Standard C1</td></tr>
+            <tr><td>Storage</td><td><code>sapetranonprod</code> LRS — containers <code>dev/</code> / <code>accp/</code></td><td><code>sapetraprod</code> GRS</td></tr>
+            <tr><td>Azure OpenAI</td><td><code>aoai-petra-nonprod</code></td><td><code>aoai-petra-prod</code></td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="azure-componentes">
+    <h2>Componentes — Frontend / Backend / Worker</h2>
+    <p>Cada produto Petra tem 3 componentes deployáveis:</p>
+    <table>
+        <thead>
+            <tr><th>Componente</th><th>Tecnologia</th><th>Azure resource</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Frontend</strong></td><td>SvelteKit / Vue</td><td>Static Web Apps (Free em NONPROD, Standard em PROD)</td></tr>
+            <tr><td><strong>Backend</strong></td><td>FastAPI (Python)</td><td>Web App Linux — usa <code>petraplatform</code> SDK</td></tr>
+            <tr><td><strong>Worker / Events</strong></td><td>FastAPI + Service Bus listener</td><td>Web App Linux (1 worker por ilha, consome várias queues em asyncio)</td></tr>
+        </tbody>
+    </table>
+    <div class="callout">
+        <strong>Decisão Petra:</strong> não usar Azure Functions. Worker é Web App Python
+        com listener Service Bus rodando como background task no <code>startup</code>.
+        Mesma stack do backend, mesmo deploy, time não aprende outro modelo.
+    </div>
+</section>
+
+<section id="azure-eventbus">
+    <h2>Service Bus e eventos entre sistemas</h2>
+    <p>
+        Os 5 produtos conversam entre si <strong>via eventos</strong>, não chamadas diretas.
+        Genesis publica <code>lead.captured</code>, Quanto/Calenda assinam.
+    </p>
+    <pre><code>Genesis API → grava lead → publish event "lead.captured.prod"
+        ↓
+Service Bus topic: sb-petra-prod
+        ↓
+   ├─ Subscriber: Quanto worker  → cria pré-cotação
+   ├─ Subscriber: Calenda worker → sugere horário
+   ├─ Subscriber: AI brain       → enriquece com knowledge do tenant
+   └─ Subscriber: Datalake       → registra no ADLS para BI</code></pre>
+    <p>Naming das queues: <code>&lt;dominio&gt;.&lt;acao&gt;.&lt;env&gt;</code>. Exemplos:
+        <code>lead.captured.dev</code>, <code>quote.sent.accp</code>, <code>calendar.booked.prod</code>.</p>
+</section>
+
+<section id="azure-storage">
+    <h2>Storage e Datalake</h2>
+    <p>
+        Uma conta de Storage por ilha, separação por <strong>path prefix</strong>
+        com <code>tenant_id</code> — nunca conta por tenant.
+    </p>
+    <pre><code>sapetraprod/
+├── documents/
+│   ├── clinica-abc/whatsapp/2026-05-12/foto.jpg
+│   └── clinica-xyz/uploads/contrato.pdf
+├── ai-knowledge/
+│   ├── clinica-abc/embeddings/
+│   └── clinica-abc/source-docs/
+├── audios/
+└── exports/
+
+dlpetraprod/ (ADLS Gen2 — analytics)
+└── raw/tenant=clinica-abc/dt=2026-05-12/...</code></pre>
+    <p>Acesso via <strong>SAS token</strong> assinado pelo backend — cliente nunca vê
+        a conta de storage diretamente.</p>
+</section>
+
+<section id="azure-naming">
+    <h2>Naming convention oficial</h2>
+    <table>
+        <thead>
+            <tr><th>Recurso</th><th>Padrão</th><th>Exemplo</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Resource Group</td><td><code>rg-petra-&lt;env&gt;</code></td><td><code>rg-petra-prod</code></td></tr>
+            <tr><td>App Service Plan</td><td><code>plan-petra-&lt;env&gt;</code></td><td><code>plan-petra-nonprod</code></td></tr>
+            <tr><td>Web App backend</td><td><code>app-&lt;produto&gt;-back-&lt;env&gt;</code></td><td><code>app-genesis-back-prod</code></td></tr>
+            <tr><td>Web App worker</td><td><code>app-petra-worker-&lt;env&gt;</code> (1 por ilha)</td><td><code>app-petra-worker-prod</code></td></tr>
+            <tr><td>Static Web App</td><td><code>app-&lt;produto&gt;-front-&lt;env&gt;</code></td><td><code>app-quanto-front-prod</code></td></tr>
+            <tr><td>SQL Server</td><td><code>srv-petra-&lt;env&gt;</code></td><td><code>srv-petra-prod</code></td></tr>
+            <tr><td>Banco SQL</td><td><code>db&lt;produto&gt;-&lt;env&gt;</code></td><td><code>dbgenesis-prod</code></td></tr>
+            <tr><td>Service Bus</td><td><code>sb-petra-&lt;env&gt;</code></td><td><code>sb-petra-prod</code></td></tr>
+            <tr><td>Storage Account</td><td><code>sapetra&lt;env&gt;</code> (sem hífen)</td><td><code>sapetraprod</code></td></tr>
+            <tr><td>Redis</td><td><code>redis-petra-&lt;env&gt;</code></td><td><code>redis-petra-prod</code></td></tr>
+            <tr><td>Azure OpenAI</td><td><code>aoai-petra-&lt;env&gt;</code></td><td><code>aoai-petra-prod</code></td></tr>
+            <tr><td>Datalake (ADLS)</td><td><code>dlpetra&lt;env&gt;</code></td><td><code>dlpetraprod</code></td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="azure-custo">
+    <h2>Custo estimado (CAD/mês)</h2>
+    <table>
+        <thead>
+            <tr><th>Recurso</th><th>NONPROD</th><th>PROD</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>App Service Plan</td><td>~$35 (B2)</td><td>~$110 (P0v3)</td></tr>
+            <tr><td>Static Web Apps</td><td>$0 Free</td><td>~$25 Standard</td></tr>
+            <tr><td>SQL (Basic 5DTU em NONPROD)</td><td>~$60 (6 dbs)</td><td>~$180 (6 dbs S1)</td></tr>
+            <tr><td>Redis</td><td>$0</td><td>~$110</td></tr>
+            <tr><td>Service Bus Standard</td><td>~$15</td><td>~$15</td></tr>
+            <tr><td>Storage</td><td>~$15</td><td>~$80</td></tr>
+            <tr><td>Azure OpenAI (pay-per-token)</td><td>~$50</td><td>~$250</td></tr>
+            <tr><td><strong>Subtotal</strong></td><td><strong>~$175</strong></td><td><strong>~$770</strong></td></tr>
+        </tbody>
+    </table>
+    <p><strong>Total estimado: ~$945 CAD/mês</strong> para os 3 ambientes completos. Custos
+        reais variam com volume de IA tokens, storage usado e tráfego.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- ===== CATEGORIA 3: GITHUB & BRANCHES                              ===== -->
+<!-- ===================================================================== -->
+
+<section id="git-repos">
+    <h2>Estrutura de repos</h2>
+    <p>Cada produto da Petra tem 3 repos (frontend, backend, worker quando aplicável):</p>
+    <pre><code>cacaviana/petraplatform        ← SDK compartilhado (este repo)
+cacaviana/genesis-backend
+cacaviana/genesis-frontend
+cacaviana/quanto-backend
+cacaviana/quanto-frontend
+cacaviana/calenda-backend
+cacaviana/calenda-frontend
+cacaviana/vitrine-backend
+cacaviana/vitrine-frontend
+cacaviana/polaris-backend
+cacaviana/polaris-frontend
+cacaviana/petra-worker         ← 1 worker compartilhado por ilha</code></pre>
+</section>
+
+<section id="git-branches">
+    <h2>Branches longas — main / accp / prod</h2>
+    <p>Em cada repo, 3 branches longas, uma por ambiente:</p>
+    <table>
+        <thead>
+            <tr><th>Branch</th><th>Deploy automático</th><th>Quem mergeia</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><code>main</code></td><td>DEV</td><td>Dev (após PR review)</td></tr>
+            <tr><td><code>accp</code></td><td>ACCP</td><td>Tech lead (PR main → accp)</td></tr>
+            <tr><td><code>prod</code></td><td>PROD</td><td>Tech lead (PR accp → prod, após tester aprovar)</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="git-fluxo">
+    <h2>Fluxo feature → main → accp → prod</h2>
+    <div class="mermaid">
+flowchart LR
+    F["feature/CU-12345-x"] -->|PR + review| M[main]
+    M -->|deploy DEV auto| D((DEV))
+    M -->|PR promote| A[accp]
+    A -->|deploy ACCP auto| AC((ACCP))
+    AC -->|tester aprova| P[prod]
+    P -->|deploy PROD auto| PR((PROD))
+    </div>
+    <ul>
+        <li><strong>Feature</strong> sai sempre de <code>main</code></li>
+        <li><strong>Squash merge</strong> em <code>main</code> (1 commit limpo por feature)</li>
+        <li><strong>Promoção</strong> é PR (não cherry-pick) — review visual, undo via revert</li>
+        <li><strong>Hotfix</strong> sai de <code>prod</code>, merge em <code>prod</code>, depois cherry-pick pra accp e main</li>
+    </ul>
+</section>
+
+<section id="git-workflows">
+    <h2>Workflows GitHub Actions</h2>
+    <p>Cada repo tem 3 workflows (mesma estrutura, branches diferentes):</p>
+    <pre><code>.github/workflows/
+├── deploy-dev.yml       trigger: push em main
+├── deploy-accp.yml      trigger: push em accp
+└── deploy-prod.yml      trigger: push em prod</code></pre>
+    <p>Cada workflow usa <code>azure/webapps-deploy@v3</code> com publish profile
+        diferente por ambiente (3 secrets: <code>AZURE_PROFILE_DEV</code>,
+        <code>AZURE_PROFILE_ACCP</code>, <code>AZURE_PROFILE_PROD</code>).</p>
+</section>
+
+<section id="git-procedimentos">
+    <h2>Procedimentos — PR, review, hotfix</h2>
+    <ul>
+        <li><strong>PR aberto</strong>: branch <code>feature/CU-{id}-descricao</code>, descrição linka task ClickUp</li>
+        <li><strong>Review</strong>: 1 aprovação mínima de outro dev ou tech lead</li>
+        <li><strong>Merge em main</strong>: squash, mantém só o título do PR no histórico</li>
+        <li><strong>Promoção pra accp</strong>: tech lead abre PR <code>main → accp</code>, descreve o conjunto de features</li>
+        <li><strong>Tester aprova</strong>: comenta no PR <code>accp → prod</code></li>
+        <li><strong>Mise en prod</strong>: tech lead mergeia PR <code>accp → prod</code></li>
+        <li><strong>Hotfix</strong>: <code>hotfix/CU-{id}</code> de <code>prod</code> → PR pra <code>prod</code> direto → cherry-pick pra <code>accp</code> e <code>main</code></li>
+    </ul>
+</section>
+
+<!-- ===================================================================== -->
+<!-- ===== CATEGORIA 4: SERVICES DO CLIENTE (MongoDB)                  ===== -->
+<!-- ===================================================================== -->
+
+<section id="mongo-porque">
+    <h2>Por que MongoDB Atlas (não Cosmos DB)</h2>
+    <p>
+        Cada cliente Petra usa <strong>combinação diferente</strong> de Azure services
+        (um tem OpenAI + Video Indexer, outro tem só Speech-to-Text). Isso é
+        <strong>configuração flexível por tenant</strong> — SQL relacional não cabe.
+    </p>
+    <div class="callout">
+        <strong>Decisão:</strong> MongoDB Atlas contratado via <strong>Azure Marketplace</strong>.
+        Não Cosmos DB. Atlas tem drivers MongoDB nativos, Atlas Vector Search pra RAG da
+        "AI brain" da Petra, backup point-in-time, e billing unificado com Azure.
+    </div>
+</section>
+
+<section id="mongo-modelagem">
+    <h2>Modelagem do documento por tenant</h2>
+    <pre><code class="javascript">// db: petra_configs
+// collection: tenant_resources
+{
+  "_id": "clinica-abc",
+  "tenant_id": "clinica-abc",
+  "azure_services": {
+    "openai": {
+      "endpoint": "https://aoai-petra-prod.openai.azure.com/",
+      "deployment": "gpt-4o-mini",
+      "system_prompt_extra": "Você é o atendente da Clínica ABC..."
+    },
+    "speech_to_text": {
+      "region": "eastus",
+      "language": "pt-BR",
+      "enabled": true
+    },
+    "video_indexer": null,              // não contratado
+    "blob_storage": {
+      "container_prefix": "clinica-abc/",
+      "tier": "Hot"
+    },
+    "datalake": {
+      "container": "clinica-abc",
+      "retention_days": 90
+    }
+  },
+  "feature_flags": { "ai_brain_v2": true },
+  "limits": { "ai_tokens_per_month": 500000, "storage_gb": 50 },
+  "updated_at": "2026-05-12T14:30:00Z"
+}</code></pre>
+</section>
+
+<section id="mongo-catalogo">
+    <h2>Catálogo de Azure services suportados</h2>
+    <table>
+        <thead>
+            <tr><th>Service</th><th>Para que serve</th><th>Quem consome</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Azure OpenAI</td><td>Conversas, geração de conteúdo, summarization</td><td>Genesis, Polaris, Vitrine</td></tr>
+            <tr><td>Speech-to-Text</td><td>Transcrição de áudio</td><td>Genesis (WhatsApp voice)</td></tr>
+            <tr><td>Video Indexer</td><td>Análise de vídeo, OCR, sentimento</td><td>Polaris (Reels)</td></tr>
+            <tr><td>Blob Storage</td><td>Anexos, mídia, exports</td><td>Todos</td></tr>
+            <tr><td>Datalake (ADLS Gen2)</td><td>Histórico, BI, analytics</td><td>Genesis, Quanto</td></tr>
+            <tr><td>Atlas Vector Search</td><td>RAG da AI brain</td><td>Genesis (em desenvolvimento)</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="mongo-descoberta">
+    <h2>Como o sistema descobre o que o cliente tem</h2>
+    <p>O <code>petraplatform</code> SDK v0.2 vai expor:</p>
+    <pre><code class="python">tenant: TenantContext = Depends(require_tenant)
+
+# Pega config do OpenAI desse tenant
+openai_config = tenant.get_service("openai")
+if not openai_config:
+    raise HTTPException(403, "Tenant não tem OpenAI contratado")
+
+# Usa direto
+client = AsyncAzureOpenAI(
+    endpoint=openai_config["endpoint"],
+    api_key=openai_config["api_key"],
+    deployment=openai_config["deployment"],
+)</code></pre>
+    <p>Por baixo, o SDK lê o documento no Mongo Atlas, cacheia por 5min em memória,
+        e devolve só a parte relevante.</p>
+</section>
+
+<section id="mongo-provisionamento">
+    <h2>Provisionamento (admin liga/desliga service)</h2>
+    <p>Admin da Petra (Carlos) tem um endpoint interno tipo:</p>
+    <pre><code>POST /api/admin/tenant/clinica-abc/services
+{
+  "speech_to_text": {"enabled": true, "language": "pt-BR"},
+  "video_indexer": null
+}</code></pre>
+    <p>Backend atualiza o documento Mongo. Próximo request do cliente já vê
+        a nova config (cache invalidado).</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- ===== CATEGORIA 5: GESTÃO NO CLICKUP                              ===== -->
+<!-- ===================================================================== -->
+
+<section id="clickup-estrutura">
+    <h2>Estrutura ClickUp da Petra</h2>
+    <p>Workspace <strong>ITVS</strong> (ID 9007160573). Hoje tem 7 sistemas legados;
+        os 5 produtos da Petra (Genesis/Quanto/Vitrine/Polaris/Calenda)
+        <strong>ainda precisam ser criados</strong>.</p>
+    <pre><code>Workspace ITVS
+└── Space "Sistemas IT Valley"
+    └── Folder = Sistema (ex: "Genesis")
+        └── List = Domínio (ex: "Domínio Autenticação", "Domínio Lead", ...)
+            └── Task = Entregável</code></pre>
+    <p><strong>Estado atual (snapshot 2026-05-12):</strong> 331 tarefas abertas, 7 sistemas,
+        56% sem assignee, 83% paradas há mais de 14 dias. Diagnóstico completo no documento
+        de planejamento.</p>
+</section>
+
+<section id="clickup-statuses">
+    <h2>Statuses padronizados (todos os folders)</h2>
+    <p>Hoje só o folder "Sistema de Cobrança" tem pipeline maduro. Vamos replicar em todos:</p>
+    <pre><code>feito ia  →  backlog  →  em dev  →  revisão dev  →  qa  →  em accp  →  em prod</code></pre>
+    <table>
+        <thead>
+            <tr><th>Status</th><th>Quem move</th><th>Significa</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><code>feito ia</code></td><td>IA gerou</td><td>Tarefa criada por agente IA, ainda precisa triage humano</td></tr>
+            <tr><td><code>backlog</code></td><td>Laura (GP)</td><td>Priorizada, atribuída, pronta pra pegar</td></tr>
+            <tr><td><code>em dev</code></td><td>Workflow (PR merged em main)</td><td>Em desenvolvimento ativo, branch existe</td></tr>
+            <tr><td><code>revisão dev</code></td><td>Workflow (PR opened)</td><td>PR aberto, esperando review</td></tr>
+            <tr><td><code>qa</code></td><td>Dev marca</td><td>Mergeada em main, pronta pra tester</td></tr>
+            <tr><td><code>em accp</code></td><td>Workflow (PR merged em accp)</td><td>Em homologação, tester validando</td></tr>
+            <tr><td><code>em prod</code></td><td>Workflow (PR merged em prod)</td><td>Mise en prod feita, entregue</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="clickup-branches">
+    <h2>Convenção de branches</h2>
+    <p>Toda branch de feature tem o ID da task ClickUp no nome:</p>
+    <pre><code>feature/CU-86e0y9bt4-gerenciar-avatar-pessoa
+hotfix/CU-86e0z1abc-corrigir-bug-login</code></pre>
+    <p>O ID (<code>86e0y9bt4</code>) vem da URL do task no ClickUp.
+        A integração nativa GitHub ↔ ClickUp detecta automaticamente.</p>
+</section>
+
+<section id="clickup-integracao">
+    <h2>Integração nativa GitHub ↔ ClickUp</h2>
+    <p>
+        ClickUp tem integração oficial com GitHub que faz automaticamente:
+    </p>
+    <ul>
+        <li>Branches com <code>CU-{id}</code> aparecem anexadas à task</li>
+        <li>Commits com <code>CU-{id}</code> aparecem no histórico</li>
+        <li>PRs (open/merged/closed) viram cards na task</li>
+        <li>Comments do PR sincronizam pra task</li>
+    </ul>
+    <p><strong>Instalação:</strong> ClickUp → Settings → Apps → GitHub → Connect.
+        Autoriza acesso ao GitHub <code>cacaviana</code>, seleciona repos.
+        <strong>Zero código.</strong></p>
+</section>
+
+<section id="clickup-workflow">
+    <h2>Auto-update Git → ClickUp por ambiente</h2>
+    <p>
+        A integração nativa não distingue merge em <code>main</code> vs <code>accp</code>
+        vs <code>prod</code>. Pra isso, workflow custom complementar:
+    </p>
+    <div class="mermaid">
+flowchart LR
+    PR[PR opened] -->|workflow| S1["status: revisao dev"]
+    M[merge em main] -->|workflow| S2["status: em dev"]
+    A[merge em accp] -->|workflow| S3["status: em accp"]
+    P[merge em prod] -->|workflow| S4["status: em prod"]
+    </div>
+    <p>Workflow lê o ID <code>CU-{id}</code> do nome da branch e chama API ClickUp
+        pra atualizar o status conforme o destino.</p>
+</section>
+
+<section id="clickup-agente-laura">
+    <h2>Agente IA da Laura</h2>
+    <p>Run diário às 9h. Tools: ClickUp API, GitHub API, email/Slack.
+        Output priorizado, não dump bruto:</p>
+    <pre><code>🔴 URGENTE (decida hoje):
+  • 12 tasks paradas >30 dias sem assignee
+  • 5 tasks em "qa" >10 dias com Pollyana
+
+🟡 ACOMPANHAR:
+  • 8 PRs abertos no GitHub sem task ClickUp vinculada
+  • 3 branches sem PR há >7 dias
+
+🟢 NORMAL:
+  • Genesis: 4 tasks avançaram esta semana
+  • TCC: backlog drenando, ritmo de 2/dia</code></pre>
+</section>
+
+<section id="clickup-procedimentos">
+    <h2>Procedimentos da Laura (rotina)</h2>
+    <ul>
+        <li><strong>9h diário:</strong> abre relatório do agente, decide prioridades do dia</li>
+        <li><strong>Triagem semanal (segundas):</strong> tasks em <code>feito ia</code> viram <code>backlog</code> ou são descartadas</li>
+        <li><strong>Standup quinzenal:</strong> revisa com devs as <code>em accp</code> que viraram <code>em prod</code></li>
+        <li><strong>KPIs mensais:</strong> lead time (backlog → em prod), throughput por dev, % de tasks sem assignee, idade média</li>
+    </ul>
+</section>
+
 <footer>
-    <p>petraplatform v0.1.0 · IT Valley · Documentação gerada estaticamente</p>
+    <p>petraplatform v0.1.0 · Petra · Documentação gerada estaticamente</p>
 </footer>
 
 </main>
@@ -903,6 +1368,60 @@ flowchart LR
     });
     document.getElementById('last-update').textContent =
         new Date().toLocaleDateString('pt-BR');
+
+    // ===== Scroll-spy =====
+    const navLinks = document.querySelectorAll('.sidebar nav a[href^="#"]');
+    const linkById = {};
+    navLinks.forEach(a => {
+        const id = a.getAttribute('href').slice(1);
+        linkById[id] = a;
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const id = entry.target.id;
+                navLinks.forEach(l => l.classList.remove('is-active'));
+                if (linkById[id]) {
+                    linkById[id].classList.add('is-active');
+                    linkById[id].scrollIntoView({ block: 'nearest' });
+                }
+            }
+        });
+    }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+    document.querySelectorAll('main section[id]').forEach(s => observer.observe(s));
+
+    // Estado inicial via hash ou primeiro link
+    const initial = location.hash.slice(1);
+    if (initial && linkById[initial]) {
+        linkById[initial].classList.add('is-active');
+    } else {
+        const firstLink = document.querySelector('.sidebar nav a');
+        if (firstLink) firstLink.classList.add('is-active');
+    }
+
+    // ===== Drawer mobile =====
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    function closeDrawer() {
+        sidebar.classList.remove('is-open');
+        backdrop.classList.remove('is-open');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+    function openDrawer() {
+        sidebar.classList.add('is-open');
+        backdrop.classList.add('is-open');
+        toggle.setAttribute('aria-expanded', 'true');
+    }
+    toggle.addEventListener('click', () => {
+        sidebar.classList.contains('is-open') ? closeDrawer() : openDrawer();
+    });
+    backdrop.addEventListener('click', closeDrawer);
+    navLinks.forEach(a => a.addEventListener('click', () => {
+        if (window.innerWidth <= 900) closeDrawer();
+    }));
 </script>
 
 </body>
