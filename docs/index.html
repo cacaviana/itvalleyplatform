@@ -28,6 +28,8 @@
         <a href="#cenarios">Cenários de uso</a>
         <a href="#arquitetura-camadas">Router / Service / Repo</a>
         <a href="#dx">DX do dev</a>
+        <a href="#env">Configuração <code>.env</code></a>
+        <a href="#jwt">De onde vem o JWT</a>
         <a href="#cli">CLI</a>
         <a href="#workflow">Workflow recomendado</a>
         <a href="#faq">FAQ</a>
@@ -603,6 +605,164 @@ async def list_leads(
         O <strong>dev nunca escreve</strong>: <code>load_dotenv()</code>,
         <code>WHERE tenant_id = X</code>, <code>if not user.has_permission</code>,
         decode de JWT, hash de senha.
+    </div>
+</section>
+
+<section id="env">
+    <h2>Configuração — só <code>.env</code></h2>
+    <p>
+        O dev nunca chama <code>load_dotenv()</code>: o pacote carrega sozinho no import.
+        Só precisa criar o arquivo <code>.env</code> com as variáveis abaixo. Tudo é
+        validado no startup — se faltar algo crítico, a API <strong>explode no boot</strong>
+        com mensagem clara (não em runtime).
+    </p>
+
+    <pre><code class="bash"># ===== JWT (vem do itvalleysecurity, embutido) =====
+JWT_SECRET_KEY=uma_chave_aleatoria_com_pelo_menos_32_chars_aaaaaaaa
+JWT_ISSUER=Petra                   # opcional, default = ITValley
+EV_TOKEN_SOURCE=bearer             # bearer | cookie | auto
+
+# ===== Banco do APP (cada sistema escolhe o seu) =====
+APP_SQL_CONNECTION=Driver={ODBC Driver 18 for SQL Server};Server=&lt;servidor&gt;.database.windows.net;Database=&lt;seu_db&gt;;Uid=&lt;user&gt;;Pwd=&lt;senha&gt;;Encrypt=yes;TrustServerCertificate=no;
+
+# ===== Banco platform.* (só usado no /login e admin) =====
+PLATFORM_SQL_CONNECTION=Driver={ODBC Driver 18 for SQL Server};Server=&lt;servidor&gt;.database.windows.net;Database=dbpetra;Uid=&lt;user&gt;;Pwd=&lt;senha&gt;;Encrypt=yes;TrustServerCertificate=no;
+
+# ===== Contexto de produto =====
+PLATFORM_PRODUCT_SLUG=genesis      # qual produto é esse sistema (genesis | quanto | vitrine | polaris | calenda)
+PLATFORM_TENANT_HEADER=X-Tenant-Id # opcional, default = X-Tenant-Id</code></pre>
+
+    <table>
+        <thead>
+            <tr><th>Variável</th><th>O que faz</th><th>Obrigatória?</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>JWT_SECRET_KEY</code></td>
+                <td>Segredo HMAC que assina/valida o JWT. Mesma chave nos 5 produtos da Petra (pro JWT do Genesis valer no Quanto).</td>
+                <td>✅ Sim (32+ chars senão explode no boot)</td>
+            </tr>
+            <tr>
+                <td><code>APP_SQL_CONNECTION</code></td>
+                <td>Banco onde o sistema guarda seus dados (Genesis usa o seu, Quanto o seu, etc.). Toda request seta <code>SESSION_CONTEXT</code> aqui pra RLS aplicar.</td>
+                <td>🟡 Recomendada (sem ela, RLS não aplica; só faz sentido pular em dev local sem DB)</td>
+            </tr>
+            <tr>
+                <td><code>PLATFORM_SQL_CONNECTION</code></td>
+                <td>Banco <code>dbpetra</code> com schema <code>platform.*</code>. Lido SÓ no <code>/login</code> e em endpoints admin. Zero round-trip no request normal.</td>
+                <td>🟡 Recomendada (sem ela, /login não funciona)</td>
+            </tr>
+            <tr>
+                <td><code>PLATFORM_PRODUCT_SLUG</code></td>
+                <td>O slug do produto desse sistema. <code>require_permission("leads.view")</code> resolve permissão dentro desse produto.</td>
+                <td>✅ Sim (sem ela, todo <code>require_permission</code> vira 403 silencioso)</td>
+            </tr>
+            <tr>
+                <td><code>JWT_ISSUER</code></td>
+                <td>Nome do emissor que vai dentro da claim <code>iss</code>. Recomenda-se <code>Petra</code>.</td>
+                <td>❌ Não (default <code>ITValley</code>)</td>
+            </tr>
+            <tr>
+                <td><code>EV_TOKEN_SOURCE</code></td>
+                <td>Onde o middleware procura o token: <code>bearer</code> (header), <code>cookie</code> (HttpOnly) ou <code>auto</code> (qualquer um).</td>
+                <td>❌ Não (default <code>bearer</code>)</td>
+            </tr>
+            <tr>
+                <td><code>PLATFORM_TENANT_HEADER</code></td>
+                <td>Nome do header que master usa pra escolher tenant alvo.</td>
+                <td>❌ Não (default <code>X-Tenant-Id</code>)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="callout">
+        <strong>O <code>JWT_SECRET_KEY</code> tem que ser o mesmo nos 5 produtos da Petra.</strong>
+        Senão, JWT emitido pelo Genesis não é aceito pelo Quanto, e a tese da "suite integrada"
+        morre na hora.
+    </div>
+</section>
+
+<section id="jwt">
+    <h2>De onde vem o JWT</h2>
+    <p>
+        O <code>require_tenant</code> <strong>lê</strong> o JWT da request, mas o JWT precisa
+        ter sido <strong>emitido</strong> em algum lugar antes — o famoso <code>/login</code>.
+        Cada sistema (Genesis, Quanto…) tem o seu <code>/login</code> que consulta o
+        <code>dbpetra</code> uma vez e emite o token.
+    </p>
+
+    <h3>Anatomia de um <code>/login</code></h3>
+    <pre><code class="python"># routers/auth.py — exemplo no Genesis
+from fastapi import Depends, HTTPException
+from itvalleysecurity import issue_pair
+from petraplatform.exceptions import InvalidToken
+from services.auth_service import AuthService
+
+@app.post("/login")
+async def login(body: LoginPayload, service: AuthService = Depends(get_auth_service)):
+    user, claims = await service.authenticate(body.email, body.password)
+    if not user:
+        raise HTTPException(401, "credenciais invalidas")
+
+    # Gera o par access + refresh com TODAS as claims do tenant
+    return issue_pair(
+        sub=user.id,
+        email=user.email,
+        tenant_id=claims["tenant_id"],          # de platform.tenant_users
+        is_master=claims["is_master"],          # de platform.tenants.is_master
+        products=claims["products"],            # de platform.tenant_products
+        permissions=claims["permissions"],      # de platform.role_permissions
+    )</code></pre>
+
+    <h3>O que o <code>AuthService.authenticate</code> faz</h3>
+    <pre><code class="python"># services/auth_service.py
+class AuthService:
+    async def authenticate(self, email: str, password: str):
+        # 1. Acha o user em platform.users (UNIQUE email global)
+        user = await self._users.find_by_email(email)
+        if not user or not verify_argon2(password, user.password_hash):
+            return None, {}
+
+        # 2. Pega o(s) tenant(s) que esse user pertence
+        memberships = await self._tenant_users.find_by_user(user.id)
+        # se tem só 1, escolhe ele; se tem N, pode pedir o tenant alvo
+        chosen = memberships[0]
+
+        # 3. Resolve products + permissions desse tenant
+        products = await self._tenant_products.list_active(chosen.tenant_id)
+        permissions = await self._role_permissions.resolve(
+            role=chosen.role, products=[p.slug for p in products]
+        )
+
+        # 4. Devolve as claims que vao virar JWT
+        return user, {
+            "tenant_id": chosen.tenant_id,
+            "is_master": chosen.is_master,
+            "products": [p.slug for p in products],
+            "permissions": permissions,
+        }</code></pre>
+
+    <h3>Claims que o JWT carrega</h3>
+    <table>
+        <thead>
+            <tr><th>Claim</th><th>De onde vem</th><th>Usada por</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><code>sub</code></td><td><code>platform.users.id</code></td><td>identificar o user logado</td></tr>
+            <tr><td><code>email</code></td><td><code>platform.users.email</code></td><td>display, logs</td></tr>
+            <tr><td><code>tenant_id</code></td><td><code>platform.tenant_users</code></td><td><code>require_tenant</code> + RLS</td></tr>
+            <tr><td><code>is_master</code></td><td><code>platform.tenants.is_master</code></td><td>bypass RLS, suporte</td></tr>
+            <tr><td><code>products</code></td><td><code>platform.tenant_products</code></td><td><code>require_product()</code></td></tr>
+            <tr><td><code>permissions</code></td><td><code>role_permissions</code></td><td><code>require_permission()</code></td></tr>
+            <tr><td><code>exp</code></td><td>config (default 15 min)</td><td>expiração do access token</td></tr>
+        </tbody>
+    </table>
+
+    <div class="callout">
+        <strong>Em v0.1</strong>: cada sistema tem seu próprio <code>/login</code> (porque os 5
+        produtos podem ser deployados independentes). <strong>Em v0.2</strong>: a Petra pode
+        montar um <code>auth.petra.ai</code> central que emite JWT pros 5 produtos — basta
+        compartilhar o mesmo <code>JWT_SECRET_KEY</code>.
     </div>
 </section>
 
