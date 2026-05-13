@@ -28,7 +28,7 @@ def render_platform_init_sql(products: list[dict] | None = None) -> str:
     )
 
 
-@click.command(help="Gera o DDL completo do schema platform.* (banco dbplatform).")
+@click.command(help="Gera o DDL completo do schema platform.* (banco dbpetra).")
 @click.option(
     "--output",
     "-o",
@@ -43,7 +43,7 @@ def init_platform(output: Path | None) -> None:
         click.echo(f"DDL platform.* gerada em: {output}", err=True)
         click.echo(
             "Próximo passo:\n"
-            "  sqlcmd -S srvmasterclass.database.windows.net -d dbplatform "
+            "  sqlcmd -S srvmasterclass.database.windows.net -d dbpetra "
             "-U adminitvalley -P <senha> -i " + str(output),
             err=True,
         )

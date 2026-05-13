@@ -1,6 +1,6 @@
 from click.testing import CliRunner
 
-from itvalleyplatform.cli import cli
+from petraplatform.cli import cli
 
 
 def test_generate_rls_basic():

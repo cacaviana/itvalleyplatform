@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "itvalleyplatform"
+name = "petraplatform"
 version = "0.1.0"
 description = "SDK multi-tenant plug-and-play da IT Valley (tenant, permissões, RLS) — uma linha por rota"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "IT Valley School", email = "contato@itvalley.com.br" },
+    { name = "Petra AI", email = "contato@itvalley.com.br" },
 ]
 keywords = ["fastapi", "multi-tenant", "rls", "jwt", "itvalley"]
 classifiers = [
@@ -43,14 +43,14 @@ dev = [
 ]
 
 [project.scripts]
-itvalleyplatform = "itvalleyplatform.cli:cli"
+petraplatform = "petraplatform.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/itvalley/itvalleyplatform"
-Repository = "https://github.com/itvalley/itvalleyplatform.git"
+Homepage = "https://github.com/cacaviana/petraplatform"
+Repository = "https://github.com/cacaviana/petraplatform.git"
 
 [tool.hatch.build.targets.wheel]
-packages = ["itvalleyplatform"]
+packages = ["petraplatform"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

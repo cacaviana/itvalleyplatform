@@ -9,7 +9,7 @@ from .db import set_session_context
 from .exceptions import TenantNotFound
 from .tenant_context import TenantContext
 
-_logger = logging.getLogger("itvalleyplatform.middleware")
+_logger = logging.getLogger("petraplatform.middleware")
 _warned_no_product = False
 
 

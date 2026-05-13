@@ -1,4 +1,4 @@
-# Documentação visual — itvalleyplatform
+# Documentação visual — petraplatform
 
 Site estático single-page com diagramas Mermaid explicando a arquitetura.
 
@@ -17,7 +17,7 @@ cd docs && python3 -m http.server 8000
 
 **Publicar no GitHub Pages:**
 1. Settings → Pages → Source: `main` branch, `/docs` folder
-2. URL fica: `https://<org>.github.io/itvalleyplatform/`
+2. URL fica: `https://<org>.github.io/petraplatform/`
 
 ## Conteúdo
 

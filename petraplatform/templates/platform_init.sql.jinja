@@ -1,6 +1,6 @@
 -- =====================================================================
--- Gerado por: itvalleyplatform init-platform
--- Banco alvo: dbplatform (servidor: srvmasterclass)
+-- Gerado por: petraplatform init-platform
+-- Banco alvo: dbpetra (servidor: srvmasterclass)
 -- Data: {{ generated_at }}
 --
 -- Este script é IDEMPOTENTE — pode ser executado várias vezes sem erro.
@@ -150,9 +150,9 @@ GO
 -- =====================================================================
 
 -- Master tenant (IT Valley)
-IF NOT EXISTS (SELECT 1 FROM platform.tenants WHERE id = 'it-valley')
+IF NOT EXISTS (SELECT 1 FROM platform.tenants WHERE id = 'petra')
     INSERT INTO platform.tenants (id, name, slug, plan, status, is_master)
-    VALUES ('it-valley', 'IT Valley (Master)', 'it-valley', 'internal', 'active', 1);
+    VALUES ('petra', 'Petra (Master)', 'petra', 'internal', 'active', 1);
 GO
 
 -- Catálogo de produtos

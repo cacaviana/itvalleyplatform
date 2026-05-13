@@ -1,6 +1,6 @@
-# itvalleyplatform
+# petraplatform
 
-SDK multi-tenant plug-and-play da IT Valley. O dev constrói o sistema normal, sem login,
+SDK multi-tenant plug-and-play da Petra. O dev constrói o sistema normal, sem login,
 sem tenant. No final, adiciona `Depends(require_tenant)` nas rotas. Nada mais.
 
 > 📖 Documentação visual completa com diagramas: [`docs/index.html`](docs/index.html)
@@ -9,12 +9,12 @@ sem tenant. No final, adiciona `Depends(require_tenant)` nas rotas. Nada mais.
 ## Instalação
 
 ```bash
-pip install itvalleyplatform
+pip install petraplatform
 # se for usar RLS no Azure SQL:
-pip install 'itvalleyplatform[sql]'
+pip install 'petraplatform[sql]'
 ```
 
-`itvalleyplatform` já incorpora `itvalleysecurity` (JWT) — você instala um pacote só.
+`petraplatform` já incorpora `itvalleysecurity` (JWT) — você instala um pacote só.
 
 ## Configuração — só `.env`
 
@@ -25,8 +25,8 @@ JWT_SECRET_KEY=uma_chave_com_pelo_menos_32_caracteres_xxx
 # banco do APP (cada sistema escolhe o seu) — onde aplica RLS
 APP_SQL_CONNECTION=Driver={ODBC Driver 18 for SQL Server};Server=...;Database=<seu_db>;...
 
-# banco platform (dbplatform) — só usado por init-platform CLI e admin/login
-PLATFORM_SQL_CONNECTION=Driver={ODBC Driver 18 for SQL Server};Server=...;Database=dbplatform;...
+# banco platform (dbpetra) — só usado por init-platform CLI e admin/login
+PLATFORM_SQL_CONNECTION=Driver={ODBC Driver 18 for SQL Server};Server=...;Database=dbpetra;...
 
 # slug do produto onde checamos permissões
 PLATFORM_PRODUCT_SLUG=<slug_do_seu_produto>
@@ -41,7 +41,7 @@ Você nunca chama `load_dotenv()` no seu app. O pacote carrega sozinho no import
 ```python
 # routers/leads.py
 from fastapi import Depends, FastAPI
-from itvalleyplatform import TenantContext, require_permission, require_tenant
+from petraplatform import TenantContext, require_permission, require_tenant
 from services.leads_service import LeadsService, get_leads_service
 
 app = FastAPI()
@@ -84,16 +84,16 @@ Não-master ignora o header sempre — confinado ao próprio `tenant_id` do JWT.
 
 ## Setup do banco (1x por ambiente)
 
-### 1. Criar `dbplatform` no Azure
+### 1. Criar `dbpetra` no Azure
 ```bash
 az sql db create --server <seu-servidor> --resource-group <seu-rg> \
-                 --name dbplatform --service-objective S0
+                 --name dbpetra --service-objective S0
 ```
 
 ### 2. Aplicar DDL do schema `platform.*`
 ```bash
-itvalleyplatform init-platform -o platform_init.sql
-sqlcmd -S <seu-servidor>.database.windows.net -d dbplatform \
+petraplatform init-platform -o platform_init.sql
+sqlcmd -S <seu-servidor>.database.windows.net -d dbpetra \
        -U <user> -P $SQL_PWD -i platform_init.sql
 ```
 
@@ -104,7 +104,7 @@ Cria 8 tabelas (`tenants`, `users`, `tenant_users`, `products`, `tenant_products
 ## Setup de RLS por sistema (1x por sistema)
 
 ```bash
-itvalleyplatform generate-rls --schema <seu_schema> \
+petraplatform generate-rls --schema <seu_schema> \
     --tables <tabela_a>,<tabela_b>,<tabela_c> -o rls_<seu_sistema>.sql
 
 sqlcmd -S <seu-servidor>.database.windows.net -d <seu_db> \
@@ -122,7 +122,7 @@ WHERE @tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(100))
 
 1. **Dev:** rotas cruas, zero `Depends`. Foca em negócio (Service/Repository).
 2. **Pré-staging:** passa nas rotas, adiciona `Depends(require_tenant)`.
-3. **DBA:** `itvalleyplatform generate-rls`, revisa o SQL, roda 1x.
+3. **DBA:** `petraplatform generate-rls`, revisa o SQL, roda 1x.
 4. **Pronto.** Sistema é multi-tenant.
 
 ## Tests

@@ -1,8 +1,8 @@
 {
-  "name": "itvalleyplatform-docs",
+  "name": "petraplatform-docs",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentação visual do itvalleyplatform (estática + Mermaid)",
+  "description": "Documentação visual do petraplatform (estática + Mermaid)",
   "scripts": {
     "start": "serve -s . -l ${PORT:-8080}"
   },

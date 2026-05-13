@@ -1,5 +1,5 @@
 """
-Sandbox local pra testar itvalleyplatform na mão (curl).
+Sandbox local pra testar petraplatform na mão (curl).
 
   cd sandbox
   set -a; . ./.env; set +a
@@ -18,9 +18,9 @@ from fastapi import Depends, FastAPI, Response
 from itvalleysecurity.core import issue_pair
 from pydantic import BaseModel
 
-from itvalleyplatform import TenantContext, require_permission, require_tenant
+from petraplatform import TenantContext, require_permission, require_tenant
 
-app = FastAPI(title="itvalleyplatform sandbox")
+app = FastAPI(title="petraplatform sandbox")
 
 
 class LoginBody(BaseModel):

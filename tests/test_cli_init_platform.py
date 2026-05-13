@@ -1,7 +1,7 @@
 from click.testing import CliRunner
 
-from itvalleyplatform.cli import cli
-from itvalleyplatform.cli.init_platform import DEFAULT_PRODUCTS
+from petraplatform.cli import cli
+from petraplatform.cli.init_platform import DEFAULT_PRODUCTS
 
 
 def test_init_platform_basic():
@@ -27,8 +27,9 @@ def test_init_platform_basic():
     # Idempotência: tudo embrulhado em IF NOT EXISTS
     assert "IF NOT EXISTS" in out
 
-    # Seeds
-    assert "it-valley" in out
+    # Seeds — tenant master é 'petra' (era 'it-valley' antes do rename)
+    assert "'petra'" in out
+    assert "Petra (Master)" in out
     for p in DEFAULT_PRODUCTS:
         assert p["slug"] in out
 

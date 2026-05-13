@@ -13,7 +13,7 @@ import logging
 
 from .config import SETTINGS
 
-logger = logging.getLogger("itvalleyplatform.db")
+logger = logging.getLogger("petraplatform.db")
 
 _warned_no_app_conn = False
 
@@ -25,7 +25,7 @@ def _connect(conn_str: str):
         import pyodbc
     except ImportError:
         logger.warning(
-            "pyodbc não está instalado — instale com `pip install itvalleyplatform[sql]`. "
+            "pyodbc não está instalado — instale com `pip install petraplatform[sql]`. "
             "RLS via SESSION_CONTEXT desativada nesta request."
         )
         return None

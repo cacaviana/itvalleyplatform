@@ -1,10 +1,10 @@
 """
-itvalleyplatform — multi-tenant SDK plug-and-play.
+petraplatform — multi-tenant SDK plug-and-play.
 
-Lazy: importar `itvalleyplatform` (ou rodar a CLI) NÃO força o carregamento
+Lazy: importar `petraplatform` (ou rodar a CLI) NÃO força o carregamento
 do middleware/JWT. Só puxa quando o app realmente faz
-`from itvalleyplatform import require_tenant`. Isso permite que a CLI
-`itvalleyplatform generate-rls` rode em qualquer diretório, sem .env.
+`from petraplatform import require_tenant`. Isso permite que a CLI
+`petraplatform generate-rls` rode em qualquer diretório, sem .env.
 """
 
 __version__ = "0.1.0"
@@ -41,4 +41,4 @@ def __getattr__(name: str):
         from . import exceptions
 
         return getattr(exceptions, name)
-    raise AttributeError(f"module 'itvalleyplatform' has no attribute {name!r}")
+    raise AttributeError(f"module 'petraplatform' has no attribute {name!r}")

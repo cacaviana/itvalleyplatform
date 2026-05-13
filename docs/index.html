@@ -3,16 +3,16 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>itvalleyplatform — Arquitetura</title>
+    <title>petraplatform — Arquitetura</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <aside class="sidebar">
     <div class="brand">
-        <div class="brand-logo">IT</div>
+        <div class="brand-logo">P</div>
         <div>
-            <div class="brand-name">itvalleyplatform</div>
+            <div class="brand-name">petraplatform</div>
             <div class="brand-tag">v0.1.0 · multi-tenant SDK</div>
         </div>
     </div>
@@ -31,7 +31,7 @@
         <a href="#faq">FAQ</a>
     </nav>
     <div class="sidebar-footer">
-        Documentação interna IT Valley<br>
+        Documentação interna Petra<br>
         Última geração: <span id="last-update">—</span>
     </div>
 </aside>
@@ -39,7 +39,7 @@
 <main>
 
 <section id="visao">
-    <h1>itvalleyplatform</h1>
+    <h1>petraplatform</h1>
     <p class="lead">
         SDK Python que transforma qualquer FastAPI em sistema multi-tenant
         adicionando <strong>uma linha por rota</strong>. O dev codifica negócio puro.
@@ -59,7 +59,7 @@
         </div>
         <div class="card">
             <div class="card-icon">🌐</div>
-            <h3>Master IT Valley</h3>
+            <h3>Master Petra</h3>
             <p>Claim <code>is_master</code> bypassa RLS — suporte enxerga todos os tenants.</p>
         </div>
         <div class="card">
@@ -74,7 +74,7 @@
     <h2>Arquitetura macro</h2>
     <p>
         Cada sistema pluga o mesmo SDK e fala com seu próprio banco de domínio.
-        Todos compartilham um banco de identidade único: <code>dbplatform</code>
+        Todos compartilham um banco de identidade único: <code>dbpetra</code>
         (schema <code>platform.*</code>).
     </p>
     <div class="mermaid">
@@ -89,10 +89,10 @@ flowchart LR
         SE[Outros sistemas]
     end
     subgraph SDKbox[SDK]
-        PKG[itvalleyplatform pip]
+        PKG[petraplatform pip]
     end
     subgraph AzureSQL[Azure SQL]
-        DBP[("dbplatform / platform schema<br/>tenants, users, products, perms")]
+        DBP[("dbpetra / platform schema<br/>tenants, users, products, perms")]
         DBA[("db_app_a / schema do Sistema A")]
         DBB[("db_app_b / schema do Sistema B")]
     end
@@ -126,7 +126,7 @@ sequenceDiagram
     autonumber
     participant U as User
     participant API as Sistema FastAPI
-    participant SDK as itvalleyplatform
+    participant SDK as petraplatform
     participant SEC as itvalleysecurity
     participant DB as Banco do app
 
@@ -160,14 +160,14 @@ sequenceDiagram
             </tr>
             <tr>
                 <td><code>PLATFORM_SQL_CONNECTION</code></td>
-                <td><code>dbplatform</code> (schema platform.*)</td>
+                <td><code>dbpetra</code> (schema platform.*)</td>
                 <td>Só no <strong>login</strong> e em endpoints de admin (CRUD de tenants/users/products)</td>
             </tr>
         </tbody>
     </table>
     <div class="callout">
         <strong>Cross-DB JOIN não é necessário.</strong> O JWT carrega tudo
-        que a request precisa saber. O <code>dbplatform</code> só é tocado por quem
+        que a request precisa saber. O <code>dbpetra</code> só é tocado por quem
         emite o token (login) ou por quem administra a plataforma.
     </div>
 </section>
@@ -201,7 +201,7 @@ flowchart TD
 <section id="master">
     <h2>Master bypass</h2>
     <p>
-        Usuários internos da IT Valley (suporte, admin) recebem JWT com
+        Usuários internos da Petra (suporte, admin) recebem JWT com
         <code>is_master: true</code>. A função RLS tem um OR explícito que libera tudo
         quando essa claim aparece.
     </p>
@@ -232,7 +232,7 @@ flowchart TD
 <section id="tabelas">
     <h2>Schema <code>platform.*</code></h2>
     <p>
-        Identidade compartilhada. Vive no banco <code>dbplatform</code>. Todos os 11 sistemas
+        Identidade compartilhada. Vive no banco <code>dbpetra</code>. Todos os 11 sistemas
         IT Valley se referenciam aqui.
     </p>
     <div class="mermaid">
@@ -370,7 +370,7 @@ class LeadsRepository:
 
     <h3>Depois (pré-staging — pluga o SDK)</h3>
     <pre><code class="python"># routers/leads.py — única mudança: dois Depends a mais
-from itvalleyplatform import TenantContext, require_permission, require_tenant
+from petraplatform import TenantContext, require_permission, require_tenant
 
 @app.get("/api/leads")
 async def list_leads(
@@ -391,18 +391,18 @@ async def list_leads(
 </section>
 
 <section id="cli">
-    <h2>CLI <code>itvalleyplatform</code></h2>
+    <h2>CLI <code>petraplatform</code></h2>
 
     <h3>1. Inicializar o banco platform (1 vez por ambiente)</h3>
     <pre><code class="bash"># gera o DDL completo + seeds (8 produtos + tenant master)
-itvalleyplatform init-platform -o platform_init.sql
+petraplatform init-platform -o platform_init.sql
 
 # roda no Azure SQL
-sqlcmd -S &lt;seu-servidor&gt;.database.windows.net -d dbplatform \
+sqlcmd -S &lt;seu-servidor&gt;.database.windows.net -d dbpetra \
        -U &lt;user&gt; -P $SQL_PWD -i platform_init.sql</code></pre>
 
     <h3>2. Aplicar RLS num sistema (1 vez por sistema)</h3>
-    <pre><code class="bash">itvalleyplatform generate-rls \
+    <pre><code class="bash">petraplatform generate-rls \
     --schema &lt;seu_schema&gt; \
     --tables &lt;tabela_a&gt;,&lt;tabela_b&gt;,&lt;tabela_c&gt; \
     -o rls_&lt;seu_sistema&gt;.sql
@@ -427,9 +427,9 @@ flowchart LR
     <h2>FAQ</h2>
 
     <details>
-        <summary>O sistema novo PRECISA conectar no <code>dbplatform</code> pra rodar?</summary>
+        <summary>O sistema novo PRECISA conectar no <code>dbpetra</code> pra rodar?</summary>
         <p><strong>Não.</strong> Em request path normal o middleware lê só o JWT. O
-            <code>dbplatform</code> só é necessário para <em>emitir</em> o JWT (endpoint de login)
+            <code>dbpetra</code> só é necessário para <em>emitir</em> o JWT (endpoint de login)
             e para CRUD admin de tenants/users/products. Sistema 100% offline do banco platform
             funciona perfeitamente em runtime.</p>
     </details>
@@ -467,7 +467,7 @@ flowchart LR
     <details>
         <summary>Bug do <code>itvalleysecurity</code> que retorna 500?</summary>
         <p>Token inválido na versão 0.1.0 do <code>itvalleysecurity</code> vaza como 500
-            em vez de 401. O <code>itvalleyplatform</code> embrulha a exception e devolve 401
+            em vez de 401. O <code>petraplatform</code> embrulha a exception e devolve 401
             corretamente. Testes garantem o comportamento (<code>test_auth_wrapper.py</code>).</p>
     </details>
 
@@ -483,7 +483,7 @@ flowchart LR
 </section>
 
 <footer>
-    <p>itvalleyplatform v0.1.0 · IT Valley · Documentação gerada estaticamente</p>
+    <p>petraplatform v0.1.0 · IT Valley · Documentação gerada estaticamente</p>
 </footer>
 
 </main>

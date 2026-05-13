@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from itvalleysecurity.core import issue_pair
 
-from itvalleyplatform import (
+from petraplatform import (
     TenantContext,
     require_permission,
     require_tenant,

@@ -7,7 +7,7 @@ from .init_platform import init_platform
 @click.group()
 @click.version_option()
 def cli() -> None:
-    """itvalleyplatform — utilitários de setup multi-tenant."""
+    """petraplatform — utilitários de setup multi-tenant."""
 
 
 cli.add_command(init_platform, name="init-platform")
