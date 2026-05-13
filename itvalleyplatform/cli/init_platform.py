@@ -7,14 +7,11 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 DEFAULT_PRODUCTS = [
-    {"slug": "genesis", "name": "Genesis", "description": "CRM/WhatsApp automation"},
-    {"slug": "petra", "name": "Petra", "description": "Assistente unificada (Calendar, Tasks, coach, dashboard)"},
-    {"slug": "taskdemand", "name": "TaskDemand", "description": "Plataforma educacional IT Valley School"},
-    {"slug": "phoenixx", "name": "Phoenixx", "description": "Sistema Phoenixx"},
-    {"slug": "metodo-vinci", "name": "Metodo Vinci", "description": "Sistema multi-agente AI baseado em metodologia TRACK"},
-    {"slug": "french-trainer", "name": "French Trainer", "description": "App de treino de frances"},
-    {"slug": "prospector-qc", "name": "Prospector QC", "description": "Prospector quality check"},
-    {"slug": "aya-ai", "name": "Aya AI", "description": "Sistema Aya AI"},
+    {"slug": "genesis",  "name": "Genesis",  "description": "CRM com IA conversacional em WhatsApp/SMS, multilingue"},
+    {"slug": "quanto",   "name": "Quanto",   "description": "Quoting conversacional — cliente descreve, recebe quote assinavel"},
+    {"slug": "vitrine",  "name": "Vitrine",  "description": "Geracao de carrosseis e posts para LinkedIn/IG/FB"},
+    {"slug": "polaris",  "name": "Polaris",  "description": "Scripts de Reels/Shorts + analise de competidor + trending topics"},
+    {"slug": "calenda",  "name": "Calenda",  "description": "Qualificacao visual + agendamento conversacional via WhatsApp"},
 ]
 
 
