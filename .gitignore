@@ -12,3 +12,6 @@ htmlcov/
 .env.*
 !.env.example
 sandbox/.env
+node_modules/
+docs/node_modules/
+docs/package-lock.json
