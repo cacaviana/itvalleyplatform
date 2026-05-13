@@ -80,37 +80,37 @@
     <div class="mermaid">
 flowchart LR
     subgraph Clientes
-        U[User Browser/App]
+        U[User Browser ou App]
     end
     subgraph Sistemas
-        SA[Sistema A API<br/>FastAPI]
-        SB[Sistema B API<br/>FastAPI]
-        SC[Sistema C API<br/>FastAPI]
-        SE[... outros]
+        SA[Sistema A API]
+        SB[Sistema B API]
+        SC[Sistema C API]
+        SE[Outros sistemas]
     end
-    subgraph SDK
-        SDK["itvalleyplatform<br/>(pip install)"]
+    subgraph SDKbox[SDK]
+        PKG[itvalleyplatform pip]
     end
-    subgraph Azure_SQL[Azure SQL]
-        DBP[("dbplatform<br/>schema: platform.*<br/>tenants, users,<br/>products, perms")]
-        DBA[("db_app_a<br/>schema do Sistema A")]
-        DBB[("db_app_b<br/>schema do Sistema B")]
+    subgraph AzureSQL[Azure SQL]
+        DBP[("dbplatform / platform schema<br/>tenants, users, products, perms")]
+        DBA[("db_app_a / schema do Sistema A")]
+        DBB[("db_app_b / schema do Sistema B")]
     end
 
     U -->|JWT| SA
     U -->|JWT| SB
     U -->|JWT| SC
 
-    SA -.usa.-> SDK
-    SB -.usa.-> SDK
-    SC -.usa.-> SDK
-    SE -.usa.-> SDK
+    SA -.usa.-> PKG
+    SB -.usa.-> PKG
+    SC -.usa.-> PKG
+    SE -.usa.-> PKG
 
     SA -->|RLS via SESSION_CONTEXT| DBA
     SB -->|RLS via SESSION_CONTEXT| DBB
     SC -->|RLS via SESSION_CONTEXT| DBA
 
-    SDK -.só no login.-> DBP
+    PKG -.so no login.-> DBP
     </div>
 </section>
 
@@ -125,7 +125,7 @@ flowchart LR
 sequenceDiagram
     autonumber
     participant U as User
-    participant API as Sistema (Genesis/Petra)
+    participant API as Sistema FastAPI
     participant SDK as itvalleyplatform
     participant SEC as itvalleysecurity
     participant DB as Banco do app
