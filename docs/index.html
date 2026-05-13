@@ -24,6 +24,8 @@
         <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
         <a href="#master">Master bypass</a>
         <a href="#tabelas">Tabelas <code>platform.*</code></a>
+        <a href="#tabelas-detalhe">Cada tabela em detalhe</a>
+        <a href="#cenarios">Cenários de uso</a>
         <a href="#arquitetura-camadas">Router / Service / Repo</a>
         <a href="#dx">DX do dev</a>
         <a href="#cli">CLI</a>
@@ -296,6 +298,220 @@ erDiagram
         nvarchar user_id FK
         nvarchar action
     }
+    </div>
+</section>
+
+<section id="tabelas-detalhe">
+    <h2>Cada tabela em detalhe</h2>
+    <p>
+        Para cada tabela: <strong>o que ela existe pra resolver</strong>, <strong>um exemplo
+        de linha plausível</strong>, e <strong>o que NÃO deve entrar</strong> (esse último
+        é tão importante quanto o resto — evita o pior tipo de bug arquitetural).
+    </p>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.tenants</h3>
+            <span class="table-detail-subtitle">a empresa cliente</span>
+        </div>
+        <p><strong>Propósito:</strong> cada cliente da Petra (clínica, escritório, consultoria, e-commerce…) é uma linha aqui. 1 linha = 1 organização. O <code>slug</code> é o identificador curto usado em URLs e como chave em outros lugares.</p>
+        <pre><code>id          = 'clinica-abc'
+name        = 'Clínica ABC Saúde'
+slug        = 'clinica-abc'
+plan        = 'captar'         -- comercial, livre
+status      = 'active'
+is_master   = 0                -- só Petra tem 1
+created_at  = '2026-05-12 14:30:00'</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> funcionário da clínica (vai pra <code>users</code>), lead capturado pela clínica via WhatsApp (vai pra <code>shared.contacts</code> ou ao schema do sistema).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.users</h3>
+            <span class="table-detail-subtitle">a pessoa física que LOGA</span>
+        </div>
+        <p><strong>Propósito:</strong> 1 linha = 1 ser humano com email + senha no ecossistema Petra. Pode ser o dono da empresa, funcionário cadastrado por ele, ou consultor que mexe em várias empresas. O <code>email</code> é UNIQUE global — não importa em quantas empresas a pessoa atua, é 1 só.</p>
+        <pre><code>id            = 'u-001'
+email         = 'joao@clinica-abc.com'   -- UNIQUE global
+name          = 'João Silva'
+password_hash = '$argon2id$v=19$...'
+is_active     = 1</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> contato/lead do CRM (não loga, vai pra <code>shared.contacts</code>). Empresa cliente (vai pra <code>tenants</code>).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.tenant_users</h3>
+            <span class="table-detail-subtitle">vínculo pessoa ↔ empresa (com role)</span>
+        </div>
+        <p><strong>Propósito:</strong> é aqui que mora <em>"Maria é admin da Clínica ABC"</em>. Mesma pessoa pode ter N linhas (uma por empresa onde trabalha). A role determina o que ela pode fazer — resolvida via <code>role_permissions</code>.</p>
+        <pre><code>tenant_id  = 'clinica-abc'
+user_id    = 'u-001'        -- João
+role       = 'admin'
+status     = 'active'
+created_at = '2026-05-12 14:32:00'</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> permissões granulares (resolvem em <code>role_permissions</code>). Roles diferentes por produto na mesma empresa (decisão futura via <code>tenant_user_products</code>).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.products</h3>
+            <span class="table-detail-subtitle">catálogo dos sistemas Petra</span>
+        </div>
+        <p><strong>Propósito:</strong> lista canônica dos 5 produtos da Petra. Tabela quase estática — só muda quando lança/retira produto. Slug é usado em JWT, em rotas, em código.</p>
+        <pre><code>id  | slug      | name      | is_active
+1   | genesis   | Genesis   | 1
+2   | quanto    | Quanto    | 1
+3   | vitrine   | Vitrine   | 1
+4   | polaris   | Polaris   | 1
+5   | calenda   | Calenda   | 1</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> pacotes comerciais (Atrair/Captar/Relacionar/Fidelizar — são marketing, não DDL). Customização por tenant (cada cliente tem sua config no schema do produto).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.tenant_products</h3>
+            <span class="table-detail-subtitle">o que cada empresa contratou</span>
+        </div>
+        <p><strong>Propósito:</strong> a "verdade plana" do que cada empresa pagou pra usar. Vindo de um pacote (4 linhas) ou avulso (1 linha) — pra checagem de permissão é a mesma coisa.</p>
+        <pre><code>tenant_id   | product_id | status   | expires_at
+clinica-abc | 2 (quanto) | active   | NULL
+clinica-abc | 5 (calenda)| active   | NULL</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> "pacote" (Captar) — quem traduz pacote em N produtos é o admin/script de provisionamento.</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.permissions</h3>
+            <span class="table-detail-subtitle">catálogo do que se pode fazer em cada produto</span>
+        </div>
+        <p><strong>Propósito:</strong> lista de ações por produto. Cada produto tem seu set. Slugs em formato <code>recurso.acao</code> ajudam a ler.</p>
+        <pre><code>id | product_id   | slug          | name
+1  | 1 (genesis)  | leads.view    | Ver leads
+2  | 1 (genesis)  | leads.edit    | Editar leads
+3  | 1 (genesis)  | ai.train      | Treinar IA do agente
+4  | 2 (quanto)   | quotes.send   | Enviar cotação ao cliente
+5  | 5 (calenda)  | calendar.edit | Editar agenda da equipe</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> qual user tem a permissão (resolve via role + <code>role_permissions</code>). Permissões dinâmicas por linha (RLS resolve no SQL, não aqui).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.role_permissions</h3>
+            <span class="table-detail-subtitle">qual role recebe qual permissão por produto</span>
+        </div>
+        <p><strong>Propósito:</strong> mapeia <em>"admin no Genesis tem leads.view + leads.edit + ai.train"</em>. Cada role pode ter permissões diferentes em cada produto.</p>
+        <pre><code>role  | product_id  | permission_id
+admin | 1 (genesis) | 1 (leads.view)
+admin | 1 (genesis) | 2 (leads.edit)
+admin | 1 (genesis) | 3 (ai.train)
+user  | 1 (genesis) | 1 (leads.view)    -- user só vê
+user  | 2 (quanto)  | 4 (quotes.send)</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> permissão por usuário individual (passa por role).</div>
+    </div>
+
+    <div class="table-detail">
+        <div class="table-detail-header">
+            <h3>platform.audit_logs</h3>
+            <span class="table-detail-subtitle">eventos de plataforma (não de negócio)</span>
+        </div>
+        <p><strong>Propósito:</strong> histórico de ações que mexem em identidade/governança — login, criação de tenant, convite de funcionário, mudança de role, troca de plano. <code>tenant_id</code> pode ser NULL pra ações master globais.</p>
+        <pre><code>id           = 'log-7f3a'
+action       = 'user.invited'
+tenant_id    = 'clinica-abc'
+user_id      = 'u-001'              -- quem fez (João, admin)
+entity_type  = 'user'
+entity_id    = 'u-099'              -- a pessoa convidada (Ana)
+payload_json = '{"role":"user","email":"ana@clinica-abc.com"}'
+created_at   = '2026-05-12 14:40:00'</code></pre>
+        <div class="table-detail-warning"><strong>NÃO entra:</strong> eventos de negócio (criou lead, fechou deal, enviou cotação) — esses ficam em <code>&lt;sistema&gt;.audit_logs</code>, dentro do schema do produto. Aqui é só identidade/governança.</div>
+    </div>
+</section>
+
+<section id="cenarios">
+    <h2>Cenários de uso — quem grava o quê</h2>
+    <p>
+        Os 4 fluxos mais comuns no ecossistema Petra, mostrados como diagrama.
+        Use isso pra mapear sua feature: <em>"quando o usuário fizer X, o que entra em cada tabela?"</em>
+    </p>
+
+    <h3>1. Empresa nova contrata o pacote Captar</h3>
+    <p>Clínica ABC compra o pacote Captar (Quanto + Calenda). João é o dono e vai logar como admin.</p>
+    <div class="mermaid">
+flowchart TD
+    Start([Clínica ABC compra pacote Captar])
+    Start --> T1[INSERT platform.tenants<br/>id=clinica-abc<br/>plan=captar]
+    Start --> T2[INSERT platform.users<br/>id=u-001<br/>email=joao@clinica-abc.com]
+    Start --> T3[INSERT platform.tenant_users<br/>tenant=clinica-abc<br/>user=u-001<br/>role=admin]
+    Start --> T4[INSERT platform.tenant_products<br/>tenant=clinica-abc<br/>product=quanto]
+    Start --> T5[INSERT platform.tenant_products<br/>tenant=clinica-abc<br/>product=calenda]
+    T1 --> JWT
+    T2 --> JWT
+    T3 --> JWT
+    T4 --> JWT
+    T5 --> JWT
+    JWT["JWT do João no login<br/>tenant_id=clinica-abc<br/>products=quanto, calenda<br/>permissions=admin x produtos"]
+    </div>
+
+    <h3>2. Admin cadastra funcionário</h3>
+    <p>João convida Ana (atendente). Se Ana já é cliente Petra noutra empresa, reusa a linha de <code>users</code>.</p>
+    <div class="mermaid">
+flowchart TD
+    Start([João admin convida Ana atendente])
+    Start --> Check{Ana já existe em<br/>platform.users?}
+    Check -->|Não| Create[INSERT platform.users<br/>id=u-099<br/>email=ana@clinica-abc.com]
+    Check -->|Sim, mesma email| Reuse[Reusa linha existente]
+    Create --> Link
+    Reuse --> Link
+    Link[INSERT platform.tenant_users<br/>tenant=clinica-abc<br/>user=u-099<br/>role=user]
+    Link --> Audit[INSERT platform.audit_logs<br/>action=user.invited<br/>user_id=u-001 quem convidou<br/>entity_id=u-099 quem foi convidado]
+    Audit --> Email[Email com link para Ana<br/>definir senha]
+    </div>
+
+    <h3>3. Maria consultora atende 3 clínicas com o mesmo login</h3>
+    <p>Maria é consultora externa. Trabalha pra 3 clínicas. <strong>1 linha em <code>users</code>, 3 linhas em <code>tenant_users</code>.</strong></p>
+    <div class="mermaid">
+flowchart LR
+    Maria([Maria, maria@consult.com])
+    Maria --> U[platform.users<br/>id=u-150<br/>email=maria@consult.com<br/>1 LINHA SÓ]
+
+    U --> TU1[tenant_users<br/>tenant=clinica-A<br/>role=user]
+    U --> TU2[tenant_users<br/>tenant=clinica-B<br/>role=user]
+    U --> TU3[tenant_users<br/>tenant=clinica-C<br/>role=admin]
+
+    TU1 --> Login
+    TU2 --> Login
+    TU3 --> Login
+    Login["Maria loga uma vez<br/>vê seletor de empresa<br/>(3 opções)"]
+    Login --> J["JWT escolhe 1 tenant_id<br/>(ou troca via X-Tenant-Id<br/>se a feature suportar)"]
+    </div>
+
+    <h3>4. Master Petra dá suporte a uma empresa</h3>
+    <p>Carlos (master) precisa ver dados da Clínica ABC pra debugar. RLS deixa passar pelo claim <code>is_master</code>; com <code>X-Tenant-Id</code>, ele foca naquele tenant.</p>
+    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant C as Carlos (master)
+    participant API as petraplatform
+    participant DB as Banco do app
+
+    Note over C: Modo 1: visão global (sem header)
+    C->>API: GET /api/leads<br/>JWT is_master=1
+    API->>DB: SESSION_CONTEXT is_master=1
+    DB-->>API: Linhas de TODOS os tenants
+    API-->>C: 200 OK
+
+    Note over C: Modo 2: foca em 1 tenant (com header)
+    C->>API: GET /api/leads<br/>JWT is_master=1<br/>X-Tenant-Id: clinica-abc
+    API->>DB: SESSION_CONTEXT tenant_id=clinica-abc, is_master=1
+    DB-->>API: Só linhas da Clínica ABC
+    API-->>C: 200 OK
+    </div>
+
+    <div class="callout">
+        <strong>Regra recorrente em todos os cenários:</strong> só pessoas que LOGAM viram linha
+        em <code>platform.users</code>. Lead capturado, paciente, prospect, cliente final —
+        nenhum desses entra aqui. Se entrar, o banco vira lixo em 50 tenants ativos.
     </div>
 </section>
 
