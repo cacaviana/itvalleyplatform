@@ -267,103 +267,10 @@ tr:hover td {
     overflow-x: auto;
 }
 
-/* ===== Tables grid (schema platform.*) ===== */
-.tables-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin: 24px 0;
-}
-
-.db-table {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    font-size: 13px;
-}
-
-.db-table-name {
-    background: linear-gradient(135deg, #38bdf8, #818cf8);
-    color: white;
-    padding: 10px 14px;
-    font-family: 'SF Mono', Menlo, Consolas, monospace;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.3px;
-}
-
-.db-table-tag {
-    background: rgba(56, 189, 248, 0.06);
-    color: var(--text-dim);
-    padding: 6px 14px;
-    font-size: 11px;
-    font-style: italic;
-    border-bottom: 1px solid var(--border);
-}
-
-.db-table ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.db-table li {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 14px;
-    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
-    font-size: 12px;
-}
-
-.db-table li:last-child {
-    border-bottom: none;
-}
-
-.db-table li:hover {
-    background: rgba(56, 189, 248, 0.04);
-}
-
-.col-name {
-    color: var(--text);
-    font-family: 'SF Mono', Menlo, Consolas, monospace;
-    font-weight: 600;
-}
-
-.col-type {
-    color: var(--text-dim);
-    font-family: 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 11px;
-}
-
-.badge {
-    display: inline-block;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.badge-pk {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.4);
-}
-
-.badge-uk {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.4);
-}
-
-.badge-fk {
-    background: rgba(129, 140, 248, 0.15);
-    color: #a5b4fc;
-    border: 1px solid rgba(129, 140, 248, 0.4);
+/* ===== Mermaid erDiagram (forçar SVG largo p/ caber colunas) ===== */
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
 }
 
 /* ===== Callout ===== */

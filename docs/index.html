@@ -235,105 +235,67 @@ flowchart TD
         Identidade compartilhada. Vive no banco <code>dbplatform</code>. Todos os 11 sistemas
         IT Valley se referenciam aqui.
     </p>
-    <div class="tables-grid">
-        <div class="db-table">
-            <div class="db-table-name">platform.tenants</div>
-            <ul>
-                <li><span class="col-name">id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-pk">PK</span></li>
-                <li><span class="col-name">slug</span><span class="col-type">nvarchar(100)</span><span class="badge badge-uk">UK</span></li>
-                <li><span class="col-name">name</span><span class="col-type">nvarchar(200)</span></li>
-                <li><span class="col-name">plan</span><span class="col-type">nvarchar(50)</span></li>
-                <li><span class="col-name">status</span><span class="col-type">nvarchar(20)</span></li>
-                <li><span class="col-name">is_master</span><span class="col-type">bit</span></li>
-                <li><span class="col-name">config</span><span class="col-type">nvarchar(max)</span></li>
-                <li><span class="col-name">deleted_at</span><span class="col-type">datetime2</span></li>
-            </ul>
-        </div>
+    <div class="mermaid">
+erDiagram
+    TENANTS ||--o{ TENANT_USERS : has
+    USERS ||--o{ TENANT_USERS : assigned
+    TENANTS ||--o{ TENANT_PRODUCTS : subscribes
+    PRODUCTS ||--o{ TENANT_PRODUCTS : in
+    PRODUCTS ||--o{ PERMISSIONS : defines
+    PRODUCTS ||--o{ ROLE_PERMISSIONS : scope
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : grants
+    TENANTS ||--o{ AUDIT_LOGS : tracked
+    USERS ||--o{ AUDIT_LOGS : did
 
-        <div class="db-table">
-            <div class="db-table-name">platform.users</div>
-            <ul>
-                <li><span class="col-name">id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-pk">PK</span></li>
-                <li><span class="col-name">email</span><span class="col-type">nvarchar(255)</span><span class="badge badge-uk">UK</span></li>
-                <li><span class="col-name">name</span><span class="col-type">nvarchar(200)</span></li>
-                <li><span class="col-name">password_hash</span><span class="col-type">nvarchar(500)</span></li>
-                <li><span class="col-name">is_active</span><span class="col-type">bit</span></li>
-                <li><span class="col-name">deleted_at</span><span class="col-type">datetime2</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.tenant_users</div>
-            <div class="db-table-tag">N:N tenant ↔ user</div>
-            <ul>
-                <li><span class="col-name">tenant_id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">user_id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">role</span><span class="col-type">nvarchar(50)</span></li>
-                <li><span class="col-name">status</span><span class="col-type">nvarchar(20)</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.products</div>
-            <ul>
-                <li><span class="col-name">id</span><span class="col-type">int identity</span><span class="badge badge-pk">PK</span></li>
-                <li><span class="col-name">slug</span><span class="col-type">nvarchar(50)</span><span class="badge badge-uk">UK</span></li>
-                <li><span class="col-name">name</span><span class="col-type">nvarchar(200)</span></li>
-                <li><span class="col-name">description</span><span class="col-type">nvarchar(500)</span></li>
-                <li><span class="col-name">is_active</span><span class="col-type">bit</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.tenant_products</div>
-            <div class="db-table-tag">N:N tenant ↔ product</div>
-            <ul>
-                <li><span class="col-name">tenant_id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">product_id</span><span class="col-type">int</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">status</span><span class="col-type">nvarchar(20)</span></li>
-                <li><span class="col-name">expires_at</span><span class="col-type">datetime2</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.permissions</div>
-            <ul>
-                <li><span class="col-name">id</span><span class="col-type">int identity</span><span class="badge badge-pk">PK</span></li>
-                <li><span class="col-name">product_id</span><span class="col-type">int</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">slug</span><span class="col-type">nvarchar(100)</span></li>
-                <li><span class="col-name">name</span><span class="col-type">nvarchar(200)</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.role_permissions</div>
-            <div class="db-table-tag">role → permissions por produto</div>
-            <ul>
-                <li><span class="col-name">role</span><span class="col-type">nvarchar(50)</span></li>
-                <li><span class="col-name">product_id</span><span class="col-type">int</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">permission_id</span><span class="col-type">int</span><span class="badge badge-fk">FK</span></li>
-            </ul>
-        </div>
-
-        <div class="db-table">
-            <div class="db-table-name">platform.audit_logs</div>
-            <ul>
-                <li><span class="col-name">id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-pk">PK</span></li>
-                <li><span class="col-name">tenant_id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">user_id</span><span class="col-type">nvarchar(50)</span><span class="badge badge-fk">FK</span></li>
-                <li><span class="col-name">action</span><span class="col-type">nvarchar(100)</span></li>
-                <li><span class="col-name">entity_type</span><span class="col-type">nvarchar(100)</span></li>
-                <li><span class="col-name">entity_id</span><span class="col-type">nvarchar(100)</span></li>
-                <li><span class="col-name">created_at</span><span class="col-type">datetime2</span></li>
-            </ul>
-        </div>
-    </div>
-
-    <div class="callout">
-        <strong>Relacionamentos:</strong> <code>tenants</code> ↔ <code>users</code> via <code>tenant_users</code> (N:N).
-        <code>tenants</code> ↔ <code>products</code> via <code>tenant_products</code> (N:N).
-        Cada <code>product</code> tem várias <code>permissions</code>, mapeadas a <code>roles</code> em <code>role_permissions</code>.
-        <code>audit_logs</code> referencia <code>tenant_id</code> e <code>user_id</code> (ambos opcionais — eventos master/globais ficam com NULL).
+    TENANTS {
+        nvarchar id PK
+        nvarchar slug UK
+        nvarchar name
+        nvarchar plan
+        nvarchar status
+        bit is_master
+    }
+    USERS {
+        nvarchar id PK
+        nvarchar email UK
+        nvarchar name
+        nvarchar password_hash
+        bit is_active
+    }
+    TENANT_USERS {
+        nvarchar tenant_id FK
+        nvarchar user_id FK
+        nvarchar role
+        nvarchar status
+    }
+    PRODUCTS {
+        int id PK
+        nvarchar slug UK
+        nvarchar name
+        bit is_active
+    }
+    TENANT_PRODUCTS {
+        nvarchar tenant_id FK
+        int product_id FK
+        nvarchar status
+        datetime expires_at
+    }
+    PERMISSIONS {
+        int id PK
+        int product_id FK
+        nvarchar slug
+    }
+    ROLE_PERMISSIONS {
+        nvarchar role
+        int product_id FK
+        int permission_id FK
+    }
+    AUDIT_LOGS {
+        nvarchar id PK
+        nvarchar tenant_id FK
+        nvarchar user_id FK
+        nvarchar action
+    }
     </div>
 </section>
 
@@ -532,6 +494,7 @@ flowchart LR
         startOnLoad: true,
         theme: 'base',
         themeVariables: {
+            // gerais (flowchart, sequence)
             primaryColor: '#1e293b',
             primaryTextColor: '#e2e8f0',
             primaryBorderColor: '#475569',
@@ -541,6 +504,25 @@ flowchart LR
             secondBkg: '#334155',
             tertiaryColor: '#475569',
             fontFamily: 'system-ui, -apple-system, sans-serif',
+            // erDiagram (precisa explicito ou fundo das colunas vira branco)
+            textColor: '#e2e8f0',
+            nodeBkg: '#1e293b',
+            nodeBorder: '#475569',
+            attributeBackgroundColorOdd: '#1e293b',
+            attributeBackgroundColorEven: '#0f172a',
+            // sequenceDiagram
+            actorBkg: '#1e293b',
+            actorTextColor: '#e2e8f0',
+            actorBorder: '#475569',
+            actorLineColor: '#64748b',
+            signalColor: '#e2e8f0',
+            signalTextColor: '#e2e8f0',
+            labelBoxBkgColor: '#1e293b',
+            labelBoxBorderColor: '#475569',
+            labelTextColor: '#e2e8f0',
+            noteBkgColor: '#334155',
+            noteTextColor: '#e2e8f0',
+            noteBorderColor: '#475569',
         },
     });
     document.getElementById('last-update').textContent =
