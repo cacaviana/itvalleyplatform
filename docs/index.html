@@ -138,7 +138,7 @@ sequenceDiagram
     SDK->>DB: EXEC sp_set_session_context @tenant_id, @is_master
     SDK-->>API: TenantContext
     API->>API: Service → Repository
-    API->>DB: SELECT * FROM <app_schema>.<tabela>
+    API->>DB: SELECT * FROM app_schema.tabela
     Note over DB: RLS filtra por SESSION_CONTEXT('tenant_id')
     DB-->>API: só linhas do tenant
     API-->>U: 200 OK + dados isolados
@@ -188,7 +188,7 @@ WHERE @tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(100))
 
     <div class="mermaid">
 flowchart TD
-    Q["SELECT * FROM &lt;schema&gt;.&lt;tabela&gt;"]
+    Q["SELECT * FROM app_schema.tabela"]
     POL{Security Policy<br/>fn_tenant_filter}
     SC["SESSION_CONTEXT<br/>tenant_id = clinica-abc<br/>is_master = 0"]
     R[Resultado: só linhas<br/>com tenant_id = clinica-abc]
