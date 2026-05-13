@@ -267,6 +267,59 @@ tr:hover td {
     overflow-x: auto;
 }
 
+/* ===== Tabela em detalhe (cada tabela do platform.*) ===== */
+.table-detail {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 20px 0;
+    overflow: hidden;
+}
+
+.table-detail-header {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(129, 140, 248, 0.15));
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.table-detail-header h3 {
+    margin: 0;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    color: var(--accent);
+    font-size: 16px;
+}
+
+.table-detail-subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.table-detail > p {
+    padding: 14px 20px 0;
+    margin: 0 0 10px;
+}
+
+.table-detail pre {
+    margin: 6px 20px 14px;
+}
+
+.table-detail-warning {
+    background: rgba(245, 158, 11, 0.08);
+    border-top: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 12px 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.table-detail-warning strong {
+    color: #fbbf24;
+}
+
 /* ===== Mermaid erDiagram (forçar SVG largo p/ caber colunas) ===== */
 .mermaid svg {
     max-width: 100%;
