@@ -113,22 +113,66 @@ body {
     font-size: 12px;
 }
 
-/* Headers de categoria (sticky dentro do sidebar) */
-.nav-group-header {
-    position: sticky;
-    top: 0;
-    background: var(--bg-elev);
-    margin: 18px 0 6px;
-    padding: 6px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-dim);
-    z-index: 1;
+/* Sidebar virou accordion (1 grupo aberto por vez) */
+.sidebar nav {
+    gap: 2px;
 }
-.nav-group-header:first-of-type {
-    margin-top: 0;
+.nav-group {
+    display: flex;
+    flex-direction: column;
+}
+.nav-group-header {
+    appearance: none;
+    background: transparent;
+    border: none;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text);
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s ease;
+}
+.nav-group-header:hover {
+    background: rgba(56, 189, 248, 0.06);
+}
+.nav-group-header::after {
+    content: '›';
+    font-size: 16px;
+    color: var(--text-dim);
+    transition: transform 0.2s ease;
+    transform: rotate(0deg);
+}
+.nav-group.is-open .nav-group-header::after {
+    transform: rotate(90deg);
+}
+.nav-group.is-open .nav-group-header {
+    color: var(--accent);
+}
+
+.nav-group-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 8px;
+}
+.nav-group.is-open .nav-group-content {
+    max-height: 1200px;
+    padding-bottom: 6px;
+}
+.nav-group-content a {
+    padding-left: 18px;
+    font-size: 13px;
 }
 
 .sidebar-footer {

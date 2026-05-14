@@ -20,55 +20,75 @@
         </div>
     </div>
     <nav id="sidebar-nav" aria-label="Documentação">
-        <h3 class="nav-group-header">📦 SDK petraplatform</h3>
-        <a href="#visao">Visão geral</a>
-        <a href="#arquitetura">Arquitetura macro</a>
-        <a href="#fluxo-auth">Fluxo de auth</a>
-        <a href="#multi-db">Dois bancos</a>
-        <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
-        <a href="#master">Master bypass</a>
-        <a href="#tabelas">Tabelas <code>platform.*</code></a>
-        <a href="#tabelas-detalhe">Cada tabela em detalhe</a>
-        <a href="#cenarios">Cenários de uso</a>
-        <a href="#arquitetura-camadas">Router / Service / Repo</a>
-        <a href="#dx">DX do dev</a>
-        <a href="#env">Configuração <code>.env</code></a>
-        <a href="#jwt">De onde vem o JWT</a>
-        <a href="#cli">CLI</a>
-        <a href="#workflow">Workflow recomendado</a>
-        <a href="#faq">FAQ</a>
+        <div class="nav-group">
+            <button class="nav-group-header" aria-expanded="false">📦 SDK petraplatform</button>
+            <div class="nav-group-content">
+                <a href="#visao">Visão geral</a>
+                <a href="#arquitetura">Arquitetura macro</a>
+                <a href="#fluxo-auth">Fluxo de auth</a>
+                <a href="#multi-db">Dois bancos</a>
+                <a href="#rls">RLS &amp; SESSION_CONTEXT</a>
+                <a href="#master">Master bypass</a>
+                <a href="#tabelas">Tabelas <code>platform.*</code></a>
+                <a href="#tabelas-detalhe">Cada tabela em detalhe</a>
+                <a href="#cenarios">Cenários de uso</a>
+                <a href="#arquitetura-camadas">Router / Service / Repo</a>
+                <a href="#dx">DX do dev</a>
+                <a href="#env">Configuração <code>.env</code></a>
+                <a href="#jwt">De onde vem o JWT</a>
+                <a href="#cli">CLI</a>
+                <a href="#workflow">Workflow recomendado</a>
+                <a href="#faq">FAQ</a>
+            </div>
+        </div>
 
-        <h3 class="nav-group-header">🏢 Petra Sistemas</h3>
-        <a href="#azure-visao">Visão da arquitetura Azure</a>
-        <a href="#azure-ambientes">Ambientes (NONPROD / PROD)</a>
-        <a href="#azure-componentes">Frontend / Backend / Worker</a>
-        <a href="#azure-eventbus">Service Bus e eventos</a>
-        <a href="#azure-storage">Storage e Datalake</a>
-        <a href="#azure-naming">Naming convention</a>
-        <a href="#azure-custo">Custo estimado</a>
+        <div class="nav-group">
+            <button class="nav-group-header" aria-expanded="false">🏢 Petra Sistemas</button>
+            <div class="nav-group-content">
+                <a href="#azure-visao">Visão da arquitetura Azure</a>
+                <a href="#azure-ambientes">Ambientes (NONPROD / PROD)</a>
+                <a href="#azure-componentes">Frontend / Backend / Worker</a>
+                <a href="#azure-eventbus">Service Bus e eventos</a>
+                <a href="#azure-storage">Storage e Datalake</a>
+                <a href="#azure-naming">Naming convention</a>
+                <a href="#azure-custo">Custo estimado</a>
+            </div>
+        </div>
 
-        <h3 class="nav-group-header">🔀 GitHub &amp; Branches</h3>
-        <a href="#git-repos">Estrutura de repos</a>
-        <a href="#git-branches">Branches longas (main / accp / prod)</a>
-        <a href="#git-fluxo">Fluxo feature → main → accp → prod</a>
-        <a href="#git-workflows">Workflows GitHub Actions</a>
-        <a href="#git-procedimentos">Procedimentos (PR, review, hotfix)</a>
+        <div class="nav-group">
+            <button class="nav-group-header" aria-expanded="false">🔀 GitHub &amp; Branches</button>
+            <div class="nav-group-content">
+                <a href="#git-repos">Estrutura de repos</a>
+                <a href="#git-branches">Branches longas (main / accp / prod)</a>
+                <a href="#git-fluxo">Fluxo feature → main → accp → prod</a>
+                <a href="#git-workflows">Workflows GitHub Actions</a>
+                <a href="#git-procedimentos">Procedimentos (PR, review, hotfix)</a>
+            </div>
+        </div>
 
-        <h3 class="nav-group-header">⚙️ Services do Cliente (MongoDB)</h3>
-        <a href="#mongo-porque">Por que MongoDB Atlas</a>
-        <a href="#mongo-modelagem">Modelagem do documento por tenant</a>
-        <a href="#mongo-catalogo">Catálogo de Azure services</a>
-        <a href="#mongo-descoberta">Como o sistema descobre o que o cliente tem</a>
-        <a href="#mongo-provisionamento">Provisionamento (admin liga/desliga)</a>
+        <div class="nav-group">
+            <button class="nav-group-header" aria-expanded="false">⚙️ Services do Cliente (MongoDB)</button>
+            <div class="nav-group-content">
+                <a href="#mongo-porque">Por que MongoDB Atlas</a>
+                <a href="#mongo-modelagem">Modelagem do documento por tenant</a>
+                <a href="#mongo-catalogo">Catálogo de Azure services</a>
+                <a href="#mongo-descoberta">Como o sistema descobre o que o cliente tem</a>
+                <a href="#mongo-provisionamento">Provisionamento (admin liga/desliga)</a>
+            </div>
+        </div>
 
-        <h3 class="nav-group-header">📋 Gestão no ClickUp</h3>
-        <a href="#clickup-estrutura">Estrutura ClickUp da Petra</a>
-        <a href="#clickup-statuses">Statuses padronizados</a>
-        <a href="#clickup-branches">Convenção de branches</a>
-        <a href="#clickup-integracao">Integração nativa GitHub ↔ ClickUp</a>
-        <a href="#clickup-workflow">Auto-update Git → ClickUp por ambiente</a>
-        <a href="#clickup-agente-laura">Agente IA da Laura</a>
-        <a href="#clickup-procedimentos">Procedimentos da Laura</a>
+        <div class="nav-group">
+            <button class="nav-group-header" aria-expanded="false">📋 Gestão no ClickUp</button>
+            <div class="nav-group-content">
+                <a href="#clickup-estrutura">Estrutura ClickUp da Petra</a>
+                <a href="#clickup-statuses">Statuses padronizados</a>
+                <a href="#clickup-branches">Convenção de branches</a>
+                <a href="#clickup-integracao">Integração nativa GitHub ↔ ClickUp</a>
+                <a href="#clickup-workflow">Auto-update Git → ClickUp por ambiente</a>
+                <a href="#clickup-agente-laura">Agente IA da Laura</a>
+                <a href="#clickup-procedimentos">Procedimentos da Laura</a>
+            </div>
+        </div>
     </nav>
     <div class="sidebar-footer">
         Documentação interna Petra<br>
@@ -1369,6 +1389,31 @@ flowchart LR
     document.getElementById('last-update').textContent =
         new Date().toLocaleDateString('pt-BR');
 
+    // ===== Sidebar accordion =====
+    const groups = document.querySelectorAll('.nav-group');
+
+    function openGroup(group) {
+        groups.forEach(g => {
+            g.classList.remove('is-open');
+            g.querySelector('.nav-group-header').setAttribute('aria-expanded', 'false');
+        });
+        if (group) {
+            group.classList.add('is-open');
+            group.querySelector('.nav-group-header').setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    groups.forEach(g => {
+        const header = g.querySelector('.nav-group-header');
+        header.addEventListener('click', () => {
+            if (g.classList.contains('is-open')) {
+                openGroup(null); // fecha tudo
+            } else {
+                openGroup(g);
+            }
+        });
+    });
+
     // ===== Scroll-spy =====
     const navLinks = document.querySelectorAll('.sidebar nav a[href^="#"]');
     const linkById = {};
@@ -1377,14 +1422,23 @@ flowchart LR
         linkById[id] = a;
     });
 
+    function setActive(link) {
+        navLinks.forEach(l => l.classList.remove('is-active'));
+        if (!link) return;
+        link.classList.add('is-active');
+        // Abre o grupo do link se estiver fechado
+        const group = link.closest('.nav-group');
+        if (group && !group.classList.contains('is-open')) {
+            openGroup(group);
+        }
+    }
+
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const id = entry.target.id;
-                navLinks.forEach(l => l.classList.remove('is-active'));
                 if (linkById[id]) {
-                    linkById[id].classList.add('is-active');
-                    linkById[id].scrollIntoView({ block: 'nearest' });
+                    setActive(linkById[id]);
                 }
             }
         });
@@ -1392,12 +1446,13 @@ flowchart LR
 
     document.querySelectorAll('main section[id]').forEach(s => observer.observe(s));
 
-    // Estado inicial via hash ou primeiro link
+    // Estado inicial: abre o grupo do hash ou o primeiro
     const initial = location.hash.slice(1);
     if (initial && linkById[initial]) {
-        linkById[initial].classList.add('is-active');
+        setActive(linkById[initial]);
     } else {
-        const firstLink = document.querySelector('.sidebar nav a');
+        openGroup(groups[0]);
+        const firstLink = groups[0]?.querySelector('a');
         if (firstLink) firstLink.classList.add('is-active');
     }
 
